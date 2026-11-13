@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS users (
   last_active   TEXT,                            -- местная дата последнего занятия, ГГГГ-ММ-ДД
   last_reminded TEXT,
   family        TEXT,                           -- устарело, заменено таблицей members
-  public        INTEGER NOT NULL DEFAULT 1      -- показывать ли в общем рейтинге
+  public        INTEGER NOT NULL DEFAULT 1,     -- показывать ли в общем рейтинге
+  photo         TEXT                            -- ссылка на фото профиля Telegram
 );
 CREATE TABLE IF NOT EXISTS profiles (
   tg_id   INTEGER NOT NULL,

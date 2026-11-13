@@ -46,8 +46,10 @@ const int = (v, lo, hi, def) => { v = Math.round(Number(v)); return Number.isFin
 const isDay = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 
 async function ensureUser(env, u){
-  await env.DB.prepare('INSERT INTO users (tg_id, name) VALUES (?, ?) ON CONFLICT(tg_id) DO UPDATE SET name = excluded.name')
-    .bind(u.id, str(u.first_name, 40)).run();
+  // фото профиля Telegram приходит только из игры (в подписанных данных); сообщения боту его не содержат
+  const photo = typeof u.photo_url === 'string' && /^https:\/\/[^\s"'<>]{1,300}$/.test(u.photo_url) ? u.photo_url : null;
+  await env.DB.prepare('INSERT INTO users (tg_id, name, photo) VALUES (?, ?, ?) ON CONFLICT(tg_id) DO UPDATE SET name = excluded.name, photo = COALESCE(excluded.photo, users.photo)')
+    .bind(u.id, str(u.first_name, 40), photo).run();
 }
 
 const GROUP_RE = /^[0-9a-f]{12}$/;
@@ -66,15 +68,17 @@ async function state(env, id){
 
 /* Рейтинг: scope = 'all' (все, кто не скрылся) или код группы */
 async function board(env, id, scope){
-  const row = (r, rank) => ({ rank, name: r.name, avatar: r.avatar, char: r.char, stars: r.stars, streak: r.streak, mine: r.tg_id === id });
+  // фото видно в своих группах и самому себе; в общем рейтинге чужие фото не показываем
+  const row = (r, rank) => ({ rank, name: r.name, avatar: r.avatar, char: r.char, stars: r.stars, streak: r.streak, mine: r.tg_id === id,
+    photo: r.avatar === 'tg' && (scope !== 'all' || r.tg_id === id) ? r.photo || null : null });
   if (scope === 'all'){
-    const top = (await env.DB.prepare(`SELECT p.tg_id, p.pid, p.name, p.avatar, p.char, p.stars, p.streak FROM profiles p
+    const top = (await env.DB.prepare(`SELECT p.tg_id, p.pid, p.name, p.avatar, p.char, p.stars, p.streak, u.photo FROM profiles p
         JOIN users u ON u.tg_id = p.tg_id WHERE u.public = 1 OR p.tg_id = ?1
         ORDER BY p.stars DESC, p.streak DESC, p.name LIMIT 50`).bind(id).all()).results;
     const rows = top.map((r, i) => row(r, i + 1));
     const total = (await env.DB.prepare('SELECT COUNT(*) n FROM profiles p JOIN users u ON u.tg_id = p.tg_id WHERE u.public = 1 OR p.tg_id = ?1').bind(id).first()).n;
     // свои профили, не попавшие в первые 50, показываем отдельной строкой с их местом
-    const mine = (await env.DB.prepare('SELECT tg_id, pid, name, avatar, char, stars, streak FROM profiles WHERE tg_id = ? ORDER BY stars DESC').bind(id).all()).results;
+    const mine = (await env.DB.prepare('SELECT p.tg_id, p.pid, p.name, p.avatar, p.char, p.stars, p.streak, u.photo FROM profiles p JOIN users u ON u.tg_id = p.tg_id WHERE p.tg_id = ? ORDER BY p.stars DESC').bind(id).all()).results;
     for (const m of mine){
       if (top.some(t => t.tg_id === m.tg_id && t.pid === m.pid)) continue;
       const above = (await env.DB.prepare('SELECT COUNT(*) n FROM profiles p JOIN users u ON u.tg_id = p.tg_id WHERE (u.public = 1 OR p.tg_id = ?1) AND p.stars > ?2').bind(id, m.stars).first()).n;
@@ -85,8 +89,8 @@ async function board(env, id, scope){
   if (!GROUP_RE.test(String(scope))) return null;
   const member = await env.DB.prepare('SELECT 1 x FROM members WHERE code = ? AND tg_id = ?').bind(scope, id).first();
   if (!member) return null;
-  const list = (await env.DB.prepare(`SELECT p.tg_id, p.name, p.avatar, p.char, p.stars, p.streak FROM profiles p
-      JOIN members m ON m.tg_id = p.tg_id WHERE m.code = ? ORDER BY p.stars DESC, p.streak DESC, p.name LIMIT 100`).bind(scope).all()).results;
+  const list = (await env.DB.prepare(`SELECT p.tg_id, p.name, p.avatar, p.char, p.stars, p.streak, u.photo FROM profiles p
+      JOIN members m ON m.tg_id = p.tg_id JOIN users u ON u.tg_id = p.tg_id WHERE m.code = ? ORDER BY p.stars DESC, p.streak DESC, p.name LIMIT 100`).bind(scope).all()).results;
   return { scope, total: list.length, rows: list.map((r, i) => row(r, i + 1)) };
 }
 
@@ -104,11 +108,11 @@ const DUEL_RE = /^[0-9a-f]{12}$/, Q_TYPES = ['listen', 'missing', 'wlisten', 'wr
 async function duelInfo(env, id, uid){
   const d = await env.DB.prepare('SELECT d.id, d.q, d.created, u.name owner FROM duels d LEFT JOIN users u ON u.tg_id = d.owner WHERE d.id = ?').bind(id).first();
   if (!d) return null;
-  const sc = (await env.DB.prepare('SELECT tg_id, pid, name, avatar, score, ms FROM duel_scores WHERE id = ? ORDER BY score DESC, ms ASC').bind(id).all()).results;
+  const sc = (await env.DB.prepare('SELECT s.tg_id, s.pid, s.name, s.avatar, s.score, s.ms, u.photo FROM duel_scores s LEFT JOIN users u ON u.tg_id = s.tg_id WHERE s.id = ? ORDER BY s.score DESC, s.ms ASC').bind(id).all()).results;
   let q = []; try { q = JSON.parse(d.q) } catch (e) {}
   return {
     id: d.id, created: d.created, owner: d.owner, q, invite: `https://t.me/${env.BOT_USERNAME}?start=duel_${id}`,
-    scores: sc.map(s => ({ mine: s.tg_id === uid, pid: s.tg_id === uid ? s.pid : null, name: s.name, avatar: s.avatar, score: s.score, ms: s.ms })),
+    scores: sc.map(s => ({ mine: s.tg_id === uid, pid: s.tg_id === uid ? s.pid : null, name: s.name, avatar: s.avatar, photo: s.avatar === 'tg' ? s.photo || null : null, score: s.score, ms: s.ms })),
   };
 }
 async function joinDuel(env, id, uid){

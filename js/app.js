@@ -90,10 +90,11 @@ function profiles(){
     <h1 class="brand">Tiny English</h1>
     <p class="sub">Кто сегодня занимается?</p>
     <div class="plist">
-      ${db.profiles.map(p => `<button class="pcard" data-id="${p.id}"><span class="av">${p.avatar}</span>${esc(p.name)}<small>⭐ ${total(p)} · 🔥 ${liveStreak(p)}</small></button>`).join('')}
+      ${db.profiles.map(p => `<button class="pcard" data-id="${p.id}"><span class="pedit" data-edit="${p.id}">✏️</span><span class="av">${av(p.avatar)}</span>${esc(p.name)}<small>⭐ ${total(p)} · 🔥 ${liveStreak(p)}</small></button>`).join('')}
       ${db.profiles.length < MAX_PROFILES ? '<button class="pcard add" id="add"><span class="av">➕</span>Добавить</button>' : ''}
     </div>`);
   $$('.pcard[data-id]').forEach(b => b.onclick = () => { db.cur = b.dataset.id; save(); home() });
+  $$('.pedit').forEach(b => b.onclick = e => { e.stopPropagation(); addProfile(db.profiles.find(p => p.id === b.dataset.edit)) });
   if ($('#add')) $('#add').onclick = addProfile;
 }
 
@@ -102,15 +103,17 @@ function petCards(sel){
     `<button class="petcard ${c.id === sel ? 'sel' : ''}" data-c="${c.id}">${petSVG(c.id, 0, 'mid')}${c.name}</button>`).join('')}</div>`;
 }
 
-function addProfile(){
-  let av = AVATARS[0], ch = CHARACTERS[0].id;
+/* Новый ученик или (если передан edit) изменение имени, иконки и друга */
+function addProfile(edit){
+  const icons = [...(tgPhoto() ? ['tg'] : []), ...AVATARS];
+  let pic0 = edit ? edit.avatar : (tgPhoto() && !db.profiles.length ? 'tg' : AVATARS[0]), ch = edit ? edit.char : CHARACTERS[0].id;
   const u = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
-  const tgName = u && !db.profiles.length ? u.first_name : '';
+  const tgName = edit ? edit.name : u && !db.profiles.length ? u.first_name : '';
   render('add', `
-    <h1>Новый ученик</h1>
+    <h1>${edit ? 'Изменить' : 'Новый ученик'}</h1>
     <p class="sub">Выбери картинку и напиши имя</p>
     <div class="center">
-      <div class="avs">${AVATARS.map(a => `<button data-a="${a}" class="${a === av ? 'sel' : ''}">${a}</button>`).join('')}</div>
+      <div class="avs">${icons.map(a => `<button data-a="${a}" class="${a === pic0 ? 'sel' : ''}">${av(a)}</button>`).join('')}</div>
       <input class="name" id="nm" maxlength="14" placeholder="Имя" value="${esc(tgName || '')}">
       <p class="sub" style="margin:8px 0 0">С кем будешь учиться?</p>
       ${petCards(ch)}
@@ -119,13 +122,14 @@ function addProfile(){
         <button class="btn" id="ok">Готово!</button>
       </div>
     </div>`);
-  $$('.avs button').forEach(b => b.onclick = () => { av = b.dataset.a; $$('.avs button').forEach(x => x.classList.toggle('sel', x === b)) });
+  $$('.avs button').forEach(b => b.onclick = () => { pic0 = b.dataset.a; $$('.avs button').forEach(x => x.classList.toggle('sel', x === b)) });
   $$('.petcard').forEach(b => b.onclick = () => { ch = b.dataset.c; $$('.petcard').forEach(x => x.classList.toggle('sel', x === b)); say(petById(ch).hello) });
   if ($('#back')) $('#back').onclick = profiles;
   $('#ok').onclick = () => {
     const name = $('#nm').value.trim();
     if (!name) { $('#nm').focus(); return }
-    const p = {id: 'p' + Date.now(), name, avatar: av, char: ch, stars: {}, streak: 0, last: null};
+    if (edit){ edit.name = name; edit.avatar = pic0; edit.char = ch; save(); return profiles() }
+    const p = {id: 'p' + Date.now(), name, avatar: pic0, char: ch, stars: {}, streak: 0, last: null};
     db.profiles.push(p); db.cur = p.id; save(); home();
   };
 }
@@ -176,7 +180,7 @@ function home(){
   const hello = pick([[c.hello, c.helloRu], ['Hello, ' + esc(p.name) + '!', 'Привет! Поиграем?'], ["Let's play!", 'Давай играть!']]);
   render('home', `
     <div class="top">
-      <button class="chip" id="who">${p.avatar} ${esc(p.name)}</button>
+      <button class="chip" id="who">${av(p.avatar)} ${esc(p.name)}</button>
       <span class="grow"></span>
       <span class="chip">🦴 ${bones(p)}</span>
       <span class="chip">⭐ ${t}</span>
@@ -254,7 +258,7 @@ function boardHTML(rows){
     const gap = prev && r.rank > prev + 1 ? '<div class="bgap">⋯</div>' : '';
     prev = r.rank;
     return `${gap}<div class="brow ${r.mine ? 'mine' : ''}">
-      <span class="rk">${medal(r.rank)}</span><span class="bav">${esc(r.avatar)}</span>
+      <span class="rk">${medal(r.rank)}</span><span class="bav">${av(r.avatar, r.photo)}</span>
       <span class="bn">${esc(r.name)} <small>${petById(r.char).emoji}</small></span>
       <span class="bs">⭐ ${r.stars}</span><span class="bs">🔥 ${r.streak}</span>
     </div>`}).join('') || '<p class="sub">Пока никого нет</p>'}</div>`;
@@ -666,7 +670,14 @@ function finish(){
 
 /* ================= Старт ================= */
 preloadPets();
-function start(){ db.profiles.length ? (me() ? home() : profiles()) : addProfile(); queueSync() }
+function start(){
+  /* один раз: если в игре один ученик и у него стоит рисованная иконка — ставим фото из Telegram */
+  if (!db.avm && tgPhoto()){
+    db.avm = 1;
+    if (db.profiles.length === 1 && AVATARS.includes(db.profiles[0].avatar)) db.profiles[0].avatar = 'tg';
+    if (db.profiles.length) save();
+  }
+  db.profiles.length ? (me() ? home() : profiles()) : addProfile(); queueSync() }
 if (cloud){
   render('loading', `<div class="center" style="margin-top:60px">${petSVG('dog', 0)}<p class="sub">Загружаю…</p></div>`);
   loadCloud(() => loadCloudRev(start));

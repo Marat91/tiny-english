@@ -207,7 +207,7 @@ const duelTime = ms => (ms / 1000).toFixed(1).replace('.', ',') + ' с';
 function duelTable(rows, n){
   const sorted = [...rows].sort((a, b) => b.score - a.score || a.ms - b.ms);
   return `<div class="board">${sorted.map((r, i) => `<div class="brow ${r.mine ? 'mine' : ''}">
-    <span class="rk">${['🥇', '🥈', '🥉'][i] || i + 1}</span><span class="bav">${esc(r.avatar || '🙂')}</span>
+    <span class="rk">${['🥇', '🥈', '🥉'][i] || i + 1}</span><span class="bav">${av(r.avatar, r.photo)}</span>
     <span class="bn">${esc(r.name || 'Игрок')}</span><span class="bs">✅ ${r.score}${n ? ' / ' + n : ''}</span><span class="bs">⏱ ${duelTime(r.ms)}</span></div>`).join('')}</div>`;
 }
 
@@ -223,7 +223,7 @@ function duel(note){
       ${others.length ? `<div class="stage">
           <p class="task">⚔️ На этом устройстве</p>
           <p class="sub">Отметь, кто играет, и отвечайте по очереди</p>
-          <div class="row">${others.map(o => `<button class="chip pickp on" data-id="${o.id}">${o.avatar} ${esc(o.name)}</button>`).join('')}</div>
+          <div class="row">${others.map(o => `<button class="chip pickp on" data-id="${o.id}">${av(o.avatar)} ${esc(o.name)}</button>`).join('')}</div>
           <button class="btn" id="local" style="margin-top:16px">Начать</button>
         </div>` : '<div class="note">Чтобы играть вдвоём на одном устройстве, добавьте второго ученика (нажмите на имя вверху главного экрана).</div>'}
       ${online() ? `<div class="stage" style="margin-top:14px">
@@ -251,7 +251,7 @@ function duelLocal(host, rivals){
       render('duelres', `
         <div class="stage" style="margin-top:24px"><div class="center">
           <div class="bigem medal">🏆</div>
-          <h1>${esc(best.avatar)} ${esc(best.name)}</h1>
+          <h1>${av(best.avatar)} ${esc(best.name)}</h1>
           <p class="sub" style="margin:0">Победа! Победителю +5 🦴, остальным +2 🦴</p>
         </div></div>
         <div style="margin-top:14px">${duelTable(res, qs.length)}</div>
@@ -265,7 +265,7 @@ function duelLocal(host, rivals){
     render('duelturn', `
       <div class="lbar"><button class="x" id="x">✕</button><h2 style="margin:0;flex:1">Дуэль</h2><span style="width:46px"></span></div>
       <div class="stage"><div class="center">
-        <div class="bigem">${pl.avatar}</div>
+        <div class="bigem">${av(pl.avatar)}</div>
         <h2 style="margin:0">Отвечает ${esc(pl.name)}</h2>
         <p class="sub" style="margin:0">${qs.length} ${plural(qs.length, 'вопрос', 'вопроса', 'вопросов')}. Остальные не подглядывают 🙈</p>
         <button class="btn" id="go">Я готов!</button>

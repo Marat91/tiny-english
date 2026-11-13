@@ -409,3 +409,10 @@ button.brow{width:100%;font:inherit;font-weight:800;font-size:clamp(16px,2.6vw,1
 }
 
 .hero .link{text-align:left;display:block}
+
+/* фото из Telegram вместо иконки */
+.avimg{width:1.2em;height:1.2em;border-radius:50%;object-fit:cover;vertical-align:-.25em;background:#e6e9f5}
+.avs button .avimg{width:100%;height:100%;vertical-align:top}
+.avs button{overflow:hidden;padding:0}
+.pcard{position:relative}
+.pedit{position:absolute;top:8px;right:8px;width:36px;height:36px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:16px}
