@@ -130,6 +130,18 @@ input.name:focus{border-color:var(--blue)}
 @keyframes pop{0%{transform:scale(0) rotate(-40deg)}70%{transform:scale(1.3)}}
 .gift{background:#fff7d6;border:3px dashed var(--yellow);border-radius:20px;padding:12px 18px;font-weight:800;font-size:20px;margin:10px auto;display:inline-block}
 
+/* семья */
+.board{display:flex;flex-direction:column;gap:10px;max-width:560px;margin:0 auto}
+.brow{display:flex;align-items:center;gap:12px;background:#fff;border-radius:20px;padding:12px 16px;font-weight:800;
+  font-size:clamp(17px,2.8vw,22px);box-shadow:0 4px 0 rgba(35,50,74,.08);border:3px solid transparent}
+.brow.mine{border-color:#bcd7ff}
+.brow .rk{width:1.6em;text-align:center;color:var(--muted)}
+.brow .bav{font-size:1.5em}
+.brow .bn{flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.brow .bs{white-space:nowrap}
+.remind{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:6px}
+.remind select{font:inherit;font-weight:800;border:0;background:none;color:var(--blue)}
+
 /* алфавит */
 .abc{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:10px;margin-top:12px}
 .abc button{background:#fff;border-radius:18px;padding:10px 4px;font-size:30px;font-weight:900;box-shadow:0 4px 0 rgba(35,50,74,.1)}

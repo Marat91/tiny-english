@@ -33,6 +33,7 @@ function save(){
   const s = JSON.stringify(db);
   try { localStorage.setItem(KEY, s) } catch(e){}
   if (cloud && s.length <= CLOUD_LIMIT) { try { cloud.setItem(KEY, s) } catch(e){} }
+  if (typeof queueSync === 'function') queueSync();                 // и на сервер, для семейного рейтинга
 }
 
 /* Забирает прогресс из облака, если он новее локального. done(true) — данные заменены. */

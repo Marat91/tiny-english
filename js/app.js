@@ -104,6 +104,7 @@ function home(){
   render('home', `
     <div class="top">
       <button class="chip" id="who">${p.avatar} ${esc(p.name)}</button>
+      <button class="chip" id="fam">👨‍👩‍👧 Семья</button>
       <span class="grow"></span>
       <span class="chip">⭐ ${t}</span>
       <span class="chip">🔥 ${liveStreak(p)}</span>
@@ -129,12 +130,61 @@ function home(){
       <div class="grid">${ALL.filter(L => L.t === tp).map(L => lessonCard(p, L)).join('')}</div>`).join('')}`);
   $('#who').onclick = profiles;
   $('#chg').onclick = choosePet;
+  $('#fam').onclick = family;
   $('#abc').onclick = () => alphabet();
   $('.pet').onclick = () => { petReact('ok'); say(c.hello) };
   $$('.lcard[data-id]').forEach(b => b.onclick = () => {
     if (b.classList.contains('locked')) { buzz(); petReact('no'); return }
     startLesson(ALL.find(L => L.id === b.dataset.id));
   });
+}
+
+/* ================= Семья: общий рейтинг и напоминания ================= */
+function family(){
+  const draw = () => {
+    if (screen !== 'family' && screen !== '') return;
+    const board = srv ? srv.board : db.profiles
+      .map(p => ({name: p.name, avatar: p.avatar, char: p.char, stars: total(p), streak: liveStreak(p), mine: true}))
+      .sort((a, b) => b.stars - a.stars || b.streak - a.streak);
+    const sum = board.reduce((a, r) => a + r.stars, 0);
+    const medal = i => ['🥇','🥈','🥉'][i] || (i + 1);
+    render('family', `
+      <div class="lbar"><button class="x" id="x">←</button><h2 style="margin:0;flex:1">Наша семья</h2><span style="width:48px"></span></div>
+      <p class="sub">Вместе мы собрали ⭐ ${sum}</p>
+      <div class="board">
+        ${board.map((r, i) => `<div class="brow ${r.mine ? 'mine' : ''}">
+          <span class="rk">${medal(i)}</span><span class="bav">${esc(r.avatar)}</span>
+          <span class="bn">${esc(r.name)} <small>${petById(r.char).emoji}</small></span>
+          <span class="bs">⭐ ${r.stars}</span><span class="bs">🔥 ${r.streak}</span>
+        </div>`).join('') || '<p class="sub">Пока никого нет</p>'}
+      </div>
+      ${!online() ? '<div class="note">Общий рейтинг с другими телефонами и напоминания работают, когда игра открыта в Telegram.</div>'
+        : !srv ? '<p class="sub" style="margin-top:14px">Загружаю…</p>' : `
+        <div class="center" style="margin-top:18px;gap:12px">
+          ${srv.family
+            ? `<p class="sub" style="margin:0">В семье аккаунтов Telegram: ${srv.family.members}</p>
+               <div class="row"><button class="btn" id="inv">Пригласить ещё</button><button class="btn ghost" id="leave">Выйти из семьи</button></div>`
+            : `<p class="sub" style="margin:0">Позови маму, папу или друзей — у вас будет общий рейтинг</p>
+               <button class="btn" id="mk">Пригласить семью</button>`}
+          <div class="remind">
+            <button class="chip" id="ron">${srv.remind_on ? '🔔 Напоминания включены' : '🔕 Напоминания выключены'}</button>
+            ${srv.remind_on ? `<label class="chip">в <select id="rh">${Array.from({length: 24}, (_, h) => `<option value="${h}" ${h === srv.remind_hour ? 'selected' : ''}>${h}:00</option>`).join('')}</select></label>` : ''}
+          </div>
+          <p class="sub" style="margin:0;font-size:14px">Напоминание приходит от бота раз в день, если сегодня ещё не занимались</p>
+        </div>`}`);
+    $('#x').onclick = home;
+    const share = () => {
+      const url = 'https://t.me/share/url?url=' + encodeURIComponent(srv.family.invite) + '&text=' + encodeURIComponent('Давай учить английский вместе в Tiny English!');
+      try { tg.openTelegramLink(url) } catch(e){}
+    };
+    if ($('#inv')) $('#inv').onclick = share;
+    if ($('#mk')) $('#mk').onclick = async () => { await call('/api/family', {action: 'create'}); draw(); if (srv && srv.family) share() };
+    if ($('#leave')) $('#leave').onclick = async () => { await call('/api/family', {action: 'leave'}); draw() };
+    if ($('#ron')) $('#ron').onclick = async () => { await call('/api/settings', {remind_on: !srv.remind_on, remind_hour: srv.remind_hour}); draw() };
+    if ($('#rh')) $('#rh').onchange = async e => { await call('/api/settings', {remind_on: true, remind_hour: +e.target.value}); draw() };
+  };
+  screen = ''; draw();
+  if (online()) syncServer().then(() => { if (screen === 'family') draw() });
 }
 
 /* ================= Алфавит (свободный просмотр) ================= */
@@ -322,7 +372,7 @@ function finish(){
 }
 
 /* ================= Старт ================= */
-function start(){ db.profiles.length ? (me() ? home() : profiles()) : addProfile() }
+function start(){ db.profiles.length ? (me() ? home() : profiles()) : addProfile(); queueSync() }
 if (cloud){
   render('loading', `<div class="center" style="margin-top:60px">${petSVG('dog', 0)}<p class="sub">Загружаю…</p></div>`);
   loadCloud(() => start());

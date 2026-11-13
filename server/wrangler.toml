@@ -1,0 +1,19 @@
+name = "tiny-english"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+[vars]
+APP_URL = "https://marat91.github.io/tiny-english/"
+BOT_USERNAME = "Tiny_English_bot"
+
+# Раз в час проверяем, кому пора напомнить
+[triggers]
+crons = ["0 * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "tiny-english"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+# Токен бота хранится как секрет и в этот файл не попадает:
+#   npx wrangler secret put BOT_TOKEN
