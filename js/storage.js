@@ -74,3 +74,35 @@ function liveStreak(p){
   const today = dayStr(new Date()), y = dayStr(new Date(Date.now() - 864e5));
   return (p.last === today || p.last === y) ? (p.streak || 0) : 0;
 }
+
+/* Повторение: для каждого выученного слова — «коробка» (0–5) и номер дня следующего показа.
+   Хранится отдельно от основного прогресса, по одному ключу на профиль. */
+const REV_KEY = 'tiny-rev-v1';
+let rev = (() => { try { return JSON.parse(localStorage.getItem(REV_KEY)) || {} } catch(e){ return {} } })();
+const revOf = p => rev[p.id] || (rev[p.id] = {ts: 0, m: {}});
+function saveRev(p){
+  const r = revOf(p); r.ts = Date.now();
+  try { localStorage.setItem(REV_KEY, JSON.stringify(rev)) } catch(e){}
+  if (cloud){
+    const s = JSON.stringify(r);
+    if (s.length <= CLOUD_LIMIT) { try { cloud.setItem('rev_' + p.id, s) } catch(e){} }
+  }
+}
+function loadCloudRev(done){
+  if (!cloud || !db.profiles.length) return done();
+  let fin = false;
+  const end = () => { if (!fin){ fin = true; done() } };
+  setTimeout(end, 2000);
+  try {
+    cloud.getItems(db.profiles.map(p => 'rev_' + p.id), (err, vals) => {
+      if (!err && vals) for (const p of db.profiles){
+        try {
+          const r = JSON.parse(vals['rev_' + p.id] || 'null');
+          if (r && r.m && (r.ts || 0) > ((rev[p.id] || {}).ts || 0)) rev[p.id] = r;
+        } catch(e){}
+      }
+      try { localStorage.setItem(REV_KEY, JSON.stringify(rev)) } catch(e){}
+      end();
+    });
+  } catch(e){ end() }
+}

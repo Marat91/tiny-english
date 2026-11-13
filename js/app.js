@@ -41,14 +41,47 @@ function sparkle(d){
 
 /* ---------- список уроков и замки ---------- */
 const abcDone = p => ABC.filter((_, i) => p.stars['abc:' + i] > 0).length;
+const topicDone = (p, t) => t.lessons.every((_, i) => p.stars[t.id + ':' + i] > 0);
+/* Первые пять тем открываются по одной после уроков алфавита, дальше — после предыдущей темы */
+const topicOpen = (p, ti) => abcDone(p) >= Math.min(ti + 1, ABC.length) && (ti < 5 || topicDone(p, TOPICS[ti - 1]));
 function isLocked(p, L){
+  if (L.kind === 'exam') return L.t ? !(topicOpen(p, L.ti) && topicDone(p, L.t)) : abcDone(p) < ABC.length;
   if (L.kind === 'abc') return L.i > 0 && !(p.stars['abc:' + (L.i - 1)] > 0);
-  return abcDone(p) < L.ti + 1 || (L.i > 0 && !(p.stars[L.t.id + ':' + (L.i - 1)] > 0));
+  return !topicOpen(p, L.ti) || (L.i > 0 && !(p.stars[L.t.id + ':' + (L.i - 1)] > 0));
 }
 const ALL = [
   ...ABC.map((set, i) => ({id: 'abc:' + i, kind: 'abc', i, set})),
-  ...TOPICS.flatMap((t, ti) => t.lessons.map((set, i) => ({id: t.id + ':' + i, kind: 'word', t, ti, i, set}))),
+  {id: 'abc:x', kind: 'exam', set: LETTERS},
+  ...TOPICS.flatMap((t, ti) => [
+    ...t.lessons.map((set, i) => ({id: t.id + ':' + i, kind: 'word', t, ti, i, set})),
+    {id: t.id + ':x', kind: 'exam', t, ti, set: t.lessons.flat()},
+  ]),
 ];
+const plural = (n, one, few, many) => { const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many };
+
+/* ---------- повторение: когда какое слово показывать снова ---------- */
+const DAY0 = Date.UTC(2026, 0, 1);
+const dayNo = () => Math.floor((Date.now() - new Date().getTimezoneOffset() * 60000 - DAY0) / 864e5);
+const GAPS = [1, 2, 4, 7, 14, 30];                       // через сколько дней повторять после каждого верного ответа
+const revKey = x => x.u ? 'L:' + x.u : 'W:' + x.en;
+const ITEMS = {};
+LETTERS.forEach(x => { ITEMS[revKey(x)] = {x} });
+TOPICS.forEach(t => t.lessons.flat().forEach(x => { ITEMS[revKey(x)] = {x, t} }));
+/* Всё, что пройдено в уроках, должно быть в повторении (в том числе пройденное до появления этого режима) */
+function seedRev(p){
+  const m = revOf(p).m, d = dayNo(); let added = 0;
+  /* по 10 в день, чтобы не вывалить на ребёнка сразу всё пройденное */
+  ALL.forEach(L => { if (L.kind !== 'exam' && p.stars[L.id] > 0) L.set.forEach(x => { const k = revKey(x); if (!m[k]) m[k] = [0, d + Math.floor(added++ / 10)] }) });
+  if (added) saveRev(p);
+}
+function grade(p, x, ok){
+  const m = revOf(p).m, k = revKey(x), box = ok ? Math.min(((m[k] || [0])[0]) + 1, GAPS.length - 1) : 0;
+  m[k] = [box, dayNo() + (ok ? GAPS[box] : 1)];
+}
+function dueItems(p){
+  const m = revOf(p).m, d = dayNo();
+  return Object.keys(m).filter(k => ITEMS[k] && m[k][1] <= d).sort((a, b) => m[a][1] - m[b][1] || m[a][0] - m[b][0]);
+}
 
 /* ================= Профили ================= */
 function profiles(){
@@ -110,6 +143,13 @@ function choosePet(){
 /* ================= Главная ================= */
 function lessonCard(p, L){
   const st = p.stars[L.id] || 0, locked = isLocked(p, L);
+  if (L.kind === 'exam'){
+    const medal = ['', '🥉', '🥈', '🥇'][st];
+    return `<button class="lcard exam ${locked ? 'locked' : ''}" data-id="${L.id}">
+      <div class="ls">${medal || '🏆'}</div>
+      <div class="meta"><span class="num">Испытание</span><span class="st">${locked ? '🔒' : medal ? 'пройдено' : '▶'}</span></div>
+    </button>`;
+  }
   const face = L.kind === 'abc' ? `<div class="ls">${L.set.map(x => x.u).join('')}</div>`
                                 : `<div class="ls pics">${L.set.slice(0, 5).map(pic).join('')}</div>`;
   return `<button class="lcard c${L.i % 6} ${locked ? 'locked' : ''}" data-id="${L.id}">
@@ -121,7 +161,9 @@ const starsHTML = n => `<span class="st">${[1, 2, 3].map(i => `<i class="${i <= 
 
 function home(){
   const p = me(); if (!p) return profiles();
+  seedRev(p);
   const c = myPet(), t = total(p), done = abcDone(p);
+  const dueN = dueItems(p).length, learned = Object.keys(revOf(p).m).length;
   const nextToy = TOYS.find(x => x.at > t);
   const prevAt = ([...TOYS].reverse().find(x => x.at <= t) || {at: 0}).at;
   const hello = pick([[c.hello, c.helloRu], ['Hello, ' + esc(p.name) + '!', 'Привет! Поиграем?'], ["Let's play!", 'Давай играть!']]);
@@ -147,22 +189,32 @@ function home(){
     </div>
     ${hasSound() ? '' : '<div class="note">🔇 Звук пока не загрузился — проверь интернет и открой игру ещё раз.</div>'}
 
+    ${dueN
+      ? `<button class="review" id="rev"><span class="rv-ic">🔁</span><span class="rv-t"><b>Повторение</b>
+           <small>${dueN} ${plural(dueN, 'слово ждёт', 'слова ждут', 'слов ждут')} тебя, пока не забылись</small></span><span class="rv-go">▶</span></button>`
+      : learned ? `<div class="review done"><span class="rv-ic">✅</span><span class="rv-t"><b>Всё повторено</b><small>Новые слова для повторения появятся завтра</small></span></div>` : ''}
+
     <h3 class="sec">🔤 Алфавит</h3>
     <div class="grid">
-      ${ALL.filter(L => L.kind === 'abc').map(L => lessonCard(p, L)).join('')}
+      ${ALL.filter(L => L.id.startsWith('abc:')).map(L => lessonCard(p, L)).join('')}
       <button class="lcard" id="abc"><div class="ls">🔤</div><div class="meta"><span class="num">Все буквы</span><span class="st">🔊</span></div></button>
     </div>
-    ${TOPICS.map((tp, ti) => `
-      <h3 class="sec">${tp.icon} ${tp.title}${done < ti + 1 ? ` <small>🔒 откроется после урока ${ti + 1} алфавита</small>` : ''}</h3>
-      <div class="grid">${ALL.filter(L => L.t === tp).map(L => lessonCard(p, L)).join('')}</div>`).join('')}`);
+    ${TOPICS.map((tp, ti) => {
+      if (topicOpen(p, ti)) return `<h3 class="sec">${tp.icon} ${tp.title}</h3>
+        <div class="grid">${ALL.filter(L => L.t === tp).map(L => lessonCard(p, L)).join('')}</div>`;
+      const why = done < Math.min(ti + 1, ABC.length) ? (ti < 5 ? `после урока ${ti + 1} алфавита` : 'после всего алфавита') : `после темы «${TOPICS[ti - 1].title}»`;
+      return `<div class="locked-topic"><span>${tp.icon} ${tp.title}</span><small>🔒 откроется ${why}</small></div>`;
+    }).join('')}`);
   $('#who').onclick = profiles;
   $('#chg').onclick = choosePet;
   $('#fam').onclick = rating;
+  if ($('#rev')) $('#rev').onclick = startReview;
   $('#abc').onclick = () => alphabet();
   $('.pet').onclick = () => { petReact('ok'); say(c.hello) };
   $$('.lcard[data-id]').forEach(b => b.onclick = () => {
     if (b.classList.contains('locked')) { buzz(); petReact('no'); return }
-    startLesson(ALL.find(L => L.id === b.dataset.id));
+    const L = ALL.find(x => x.id === b.dataset.id);
+    L.kind === 'exam' ? startExam(L) : startLesson(L);
   });
 }
 
@@ -302,7 +354,46 @@ function startLesson(L){
     {t: T[3], set},
   ];
   const pool = L.kind === 'abc' ? LETTERS.slice(0, ABC_RANGES[L.i][1]) : L.t.lessons.slice(0, L.i + 1).flat();
-  S = {L, steps, pos: 0, mistakes: 0, pool};
+  S = {L, mode: 'lesson', steps, pos: 0, mistakes: 0, pool, missed: new Set()};
+  step();
+}
+
+/* Испытание в конце темы: все слова темы вперемешку, без подсказок. Провалить нельзя — меняется только медаль. */
+function startExam(L){
+  const words = !!L.t;
+  const items = words ? shuffle(L.set) : shuffle(LETTERS).slice(0, 12);
+  const T = words ? ['wlisten', 'wread', 'whear'] : ['listen', 'missing'];
+  S = {L, mode: 'exam', steps: items.map((x, i) => ({t: T[i % T.length], x})), pos: 0, mistakes: 0, pool: L.set, missed: new Set()};
+  render('lesson', `
+    <div class="lbar"><button class="x" id="x">✕</button><div class="prog"><i style="width:0%"></i></div></div>
+    <div class="stage"><div class="center">
+      <div class="bigem">🏆</div>
+      <h2 style="margin:0">Испытание: ${esc(words ? L.t.title : 'Алфавит')}</h2>
+      <p class="sub" style="margin:0">${items.length} ${plural(items.length, 'вопрос', 'вопроса', 'вопросов')} по всему, что ты уже знаешь.<br>Ошибаться можно — проверим, что запомнилось!</p>
+      <div class="row" style="font-size:34px;letter-spacing:6px">🥇🥈🥉</div>
+      <button class="btn" id="go">Начать →</button>
+    </div></div>`);
+  $('#x').onclick = () => { S = null; home() };
+  $('#go').onclick = step;
+}
+
+/* Повторение: до 10 слов, которым пришёл срок. Верно с первого раза — слово уходит дальше, ошибка — вернётся завтра. */
+function startReview(){
+  const p = me(), keys = dueItems(p).slice(0, 10);
+  if (!keys.length) return home();
+  const m = revOf(p).m;
+  const known = LETTERS.filter(x => m[revKey(x)]), letters = known.length >= 4 ? known : LETTERS.slice(0, 4);
+  const steps = shuffle(keys).map(k => {
+    const {x, t} = ITEMS[k], hard = m[k][0] >= 2;
+    return t ? {t: pick(hard ? ['wread', 'whear'] : ['wlisten', 'wread']), x, pool: t.lessons.flat()}
+             : {t: pick(['listen', 'missing']), x, pool: letters.includes(x) ? letters : [...letters, x]};
+  });
+  S = {L: {id: 'review', kind: 'review'}, mode: 'review', steps, pos: 0, mistakes: 0, pool: [], missed: new Set(), n: keys.length,
+    onAnswer(st, ok){
+      if (st.rep) return;
+      grade(p, st.x, ok);
+      if (!ok) S.steps.push({...st, rep: true});            // ошибся — спросим ещё раз в конце
+    }};
   step();
 }
 function frame(inner){
@@ -313,19 +404,21 @@ function frame(inner){
 }
 function advance(){ if (!S) return; S.pos++; S.pos >= S.steps.length ? finish() : step() }
 const STEPS = {};
-function step(){ const st = S.steps[S.pos]; STEPS[st.t](st) }
-function options(x){ return shuffle([x, ...shuffle(S.pool.filter(o => o !== x)).slice(0, 3)]) }
+function step(){ const st = S.steps[S.pos]; S.cur = st; STEPS[st.t](st) }
+function options(x){ return shuffle([x, ...shuffle((S.cur.pool || S.pool).filter(o => o !== x)).slice(0, 3)]) }
 function optsHTML(x, label, cls){
   return `<div class="opts">${options(x).map(o => `<button class="opt ${cls || ''}" data-k="${esc(o.k)}">${label(o)}</button>`).join('')}</div>`;
 }
 function wireOptions(x, onRight){
-  let locked = false;
+  let locked = false, missed = false;
   $$('.opt').forEach(b => b.onclick = () => {
     if (locked || b.classList.contains('no')) return;
     if (b.dataset.k === x.k){
-      locked = true; b.classList.add('ok'); ding(); petReact('ok'); onRight();
+      locked = true; b.classList.add('ok'); ding(); petReact('ok');
+      if (S.onAnswer) S.onAnswer(S.cur, !missed);
+      onRight();
     } else {
-      b.classList.add('no'); buzz(); petReact('no'); S.mistakes++;
+      missed = true; b.classList.add('no'); buzz(); petReact('no'); S.mistakes++; S.missed.add(revKey(x));
     }
   });
 }
@@ -399,6 +492,15 @@ STEPS.wread = ({x}) => {
     ${optsHTML(x, o => esc(o.en), 'word')}`);
   wireOptions(x, () => { later(() => say(x.en), 300); later(advance, 1600) });
 };
+STEPS.whear = ({x}) => {
+  frame(`
+    ${helper('Послушай и выбери слово')}
+    <div class="center" style="margin-top:10px"><button class="btn big-round" id="snd">🔊</button></div>
+    ${optsHTML(x, o => esc(o.en), 'word')}`);
+  $('#snd').onclick = () => say(x.en);
+  wireOptions(x, () => later(advance, 900));
+  say(x.en);
+};
 STEPS.wpairs = ({set}) => pairsGame('Найди пары: картинка и слово',
   set.flatMap(x => [{k: x.en, s: pic(x)}, {k: x.en, s: esc(x.en), txt: true}]), set.length);
 
@@ -424,30 +526,45 @@ function pairsGame(title, deck, need){
 }
 
 function finish(){
-  const p = me(), before = total(p), id = S.L.id, L = S.L;
-  const stars = S.mistakes <= 1 ? 3 : S.mistakes <= 4 ? 2 : 1;
-  p.stars[id] = Math.max(p.stars[id] || 0, stars);
-  touchStreak(p); save();
+  const p = me(), before = total(p), L = S.L, mode = S.mode, m = revOf(p).m, tomorrow = dayNo() + 1;
+  let stars = 0, head, sub, big, again;
+
+  if (mode === 'review'){
+    const n = S.n;
+    head = PRAISE[1].en; sub = `Повторено: ${n} ${plural(n, 'слово', 'слова', 'слов')}`;
+    big = '<div class="bigem" style="font-size:clamp(54px,11vw,82px)">🔁✨</div>';
+    stars = 3; again = dueItems(p).length ? startReview : null;
+  } else {
+    stars = mode === 'exam' ? (S.mistakes <= 1 ? 3 : S.mistakes <= 3 ? 2 : 1) : (S.mistakes <= 1 ? 3 : S.mistakes <= 4 ? 2 : 1);
+    p.stars[L.id] = Math.max(p.stars[L.id] || 0, stars);
+    if (mode === 'lesson') L.set.forEach(x => { const k = revKey(x); if (!m[k] || S.missed.has(k)) m[k] = [0, tomorrow] });
+    else S.missed.forEach(k => { m[k] = [0, tomorrow] });   // в испытании ошибся — слово вернётся в повторение
+    head = PRAISE[3 - stars].en; sub = PRAISE[3 - stars].ru;
+    big = mode === 'exam'
+      ? `<div class="bigem medal">${['', '🥉', '🥈', '🥇'][stars]}</div>${stars < 3 ? '<p class="sub" style="margin:0">Золото — если ошибиться не больше одного раза</p>' : ''}`
+      : `<div class="stars">${[1, 2, 3].map(n => `<span class="${n <= stars ? '' : 'off'}">⭐</span>`).join('')}</div>`;
+    again = mode === 'exam' ? () => startExam(L) : () => startLesson(L);
+  }
+  saveRev(p); touchStreak(p); save();
   const after = total(p), c = myPet();
   const toy = TOYS.find(x => x.at > before && x.at <= after);
-  const praise = PRAISE[3 - stars];
   S = null;
   render('finish', `
     <div class="stage" style="margin-top:24px">
       <div class="center">
         ${petSVG(p.char, after, stars >= 2 ? 'jump dance' : '')}
-        <h1>${praise.en}</h1>
-        <p class="sub" style="margin:0">${praise.ru}</p>
-        <div class="stars">${[1, 2, 3].map(n => `<span class="${n <= stars ? '' : 'off'}">⭐</span>`).join('')}</div>
+        <h1>${head}</h1>
+        <p class="sub" style="margin:0">${sub}</p>
+        ${big}
         ${toy ? `<div class="gift">🎁 Новый подарок для ${c.name}: ${toy.icon} ${toy.name}!</div>` : ''}
         <div class="row">
-          <button class="btn ghost" id="again">Ещё раз</button>
+          ${again ? `<button class="btn ghost" id="again">${mode === 'review' ? 'Ещё повторить' : 'Ещё раз'}</button>` : ''}
           <button class="btn" id="home">Дальше →</button>
         </div>
       </div>
     </div>`);
-  fanfare(); setTimeout(() => { if (screen === 'finish') say(praise.en) }, 700);
-  $('#again').onclick = () => startLesson(L);
+  fanfare(); setTimeout(() => { if (screen === 'finish') say(head) }, 700);
+  if (again) $('#again').onclick = again;
   $('#home').onclick = () => { hush(); home() };
 }
 
@@ -456,5 +573,5 @@ preloadPets();
 function start(){ db.profiles.length ? (me() ? home() : profiles()) : addProfile(); queueSync() }
 if (cloud){
   render('loading', `<div class="center" style="margin-top:60px">${petSVG('dog', 0)}<p class="sub">Загружаю…</p></div>`);
-  loadCloud(() => start());
+  loadCloud(() => loadCloudRev(start));
 } else start();
