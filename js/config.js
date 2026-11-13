@@ -1,2 +1,2 @@
 /* Адрес сервера (общий рейтинг семьи и напоминания). Пустая строка — игра работает без сервера. */
-const API_URL = '';
+const API_URL = 'https://tiny-english.marat91.workers.dev';
