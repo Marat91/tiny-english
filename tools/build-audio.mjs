@@ -17,7 +17,8 @@ const { LETTERS, TOPICS, PRAISE, CHARACTERS, HINTS } = vm.runInNewContext(code +
 const RU_VOICE = process.env.RU_VOICE || 'Milena', RU_RATE = process.env.RU_RATE || '170';
 
 const texts = new Set();
-LETTERS.forEach(l => { texts.add(l.u); texts.add(l.word) });
+// буквы диктуем строчными: одиночную заглавную голос читает как «capital A»
+LETTERS.forEach(l => { texts.add(l.l); texts.add(l.word) });
 TOPICS.forEach(t => t.lessons.flat().forEach(w => texts.add(w.en)));
 PRAISE.forEach(p => texts.add(p.en));
 CHARACTERS.forEach(c => texts.add(c.hello));
