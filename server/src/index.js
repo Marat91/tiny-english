@@ -52,16 +52,49 @@ async function ensureUser(env, u){
     .bind(u.id, str(u.first_name, 40), photo).run();
 }
 
+/* Настоящее фото профиля. Ссылка, которую Telegram отдаёт игре, часто ведёт на заглушку с буквой,
+   поэтому фото берём через бота и храним у себя (маленькое, ~160 px). Отдаём по случайному ключу /photo/<ключ>.
+   Вернёт true, если фото есть. */
+async function refreshPhoto(env, id){
+  let img = null, type = null, why = 'error';
+  try {
+    const r = await tgApi(env, 'getUserProfilePhotos', { user_id: id, limit: 1 });
+    const sizes = r.ok && r.data && r.data.result && r.data.result.photos && r.data.result.photos[0];
+    why = !r.ok ? 'api ' + r.status + ' ' + (r.data && r.data.description || '') : !sizes ? 'no photos visible to the bot (total ' + (r.data.result && r.data.result.total_count) + ')' : 'file';
+    if (sizes && sizes.length){
+      const pick = sizes.find(s => s.width >= 160) || sizes[sizes.length - 1];
+      const f = await tgApi(env, 'getFile', { file_id: pick.file_id });
+      const path = f.ok && f.data && f.data.result && f.data.result.file_path;
+      if (path){
+        const res = await fetch(`https://api.telegram.org/file/bot${env.BOT_TOKEN}/${path}`);
+        const buf = res.ok ? await res.arrayBuffer() : null;
+        if (buf && buf.byteLength > 0 && buf.byteLength <= 400000){ img = buf; type = /\.png$/i.test(path) ? 'image/png' : 'image/jpeg'; why = 'ok' }
+      }
+    }
+  } catch (e) { console.error(e) }
+  const key = hex(crypto.getRandomValues(new Uint8Array(16)));
+  await env.DB.prepare(`INSERT INTO user_photos (tg_id, key, img, type, checked) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(tg_id) DO UPDATE SET img = excluded.img, type = excluded.type, checked = excluded.checked`)
+    .bind(id, key, img, type, new Date().toISOString()).run();
+  return { ok: !!img, why };
+}
+async function servePhoto(env, key){
+  const r = await env.DB.prepare('SELECT img, type FROM user_photos WHERE key = ? AND img IS NOT NULL').bind(key).first();
+  if (!r) return new Response('not found', { status: 404 });
+  return new Response(r.img instanceof ArrayBuffer ? r.img : new Uint8Array(r.img), { headers: { 'content-type': r.type || 'image/jpeg', 'cache-control': 'public, max-age=21600', ...CORS } });
+}
+
 const GROUP_RE = /^[0-9a-f]{12}$/;
 const invite = (env, code) => `https://t.me/${env.BOT_USERNAME}?start=grp_${code}`;
 
 /* Настройки и список групп пользователя */
 async function state(env, id){
-  const me = await env.DB.prepare('SELECT remind_on, remind_hour, public FROM users WHERE tg_id = ?').bind(id).first();
+  const me = await env.DB.prepare(`SELECT u.remind_on, u.remind_hour, u.public, CASE WHEN ph.img IS NOT NULL THEN '/photo/' || ph.key ELSE u.photo END photo
+      FROM users u LEFT JOIN user_photos ph ON ph.tg_id = u.tg_id WHERE u.tg_id = ?`).bind(id).first();
   const groups = (await env.DB.prepare(`SELECT g.code, g.name, g.owner, (SELECT COUNT(*) FROM members x WHERE x.code = g.code) n
       FROM groups g JOIN members m ON m.code = g.code WHERE m.tg_id = ? ORDER BY g.created`).bind(id).all()).results;
   return {
-    remind_on: !!me.remind_on, remind_hour: me.remind_hour, public: !!me.public,
+    remind_on: !!me.remind_on, remind_hour: me.remind_hour, public: !!me.public, photo: me.photo || null,
     groups: groups.map(g => ({ code: g.code, name: g.name, members: g.n, mine: g.owner === id, invite: invite(env, g.code) })),
   };
 }
@@ -72,13 +105,14 @@ async function board(env, id, scope){
   const row = (r, rank) => ({ rank, name: r.name, avatar: r.avatar, char: r.char, stars: r.stars, streak: r.streak, mine: r.tg_id === id,
     photo: r.avatar === 'tg' && (scope !== 'all' || r.tg_id === id) ? r.photo || null : null });
   if (scope === 'all'){
-    const top = (await env.DB.prepare(`SELECT p.tg_id, p.pid, p.name, p.avatar, p.char, p.stars, p.streak, u.photo FROM profiles p
-        JOIN users u ON u.tg_id = p.tg_id WHERE u.public = 1 OR p.tg_id = ?1
+    const top = (await env.DB.prepare(`SELECT p.tg_id, p.pid, p.name, p.avatar, p.char, p.stars, p.streak, CASE WHEN ph.img IS NOT NULL THEN '/photo/' || ph.key ELSE u.photo END photo FROM profiles p
+        JOIN users u ON u.tg_id = p.tg_id LEFT JOIN user_photos ph ON ph.tg_id = p.tg_id WHERE u.public = 1 OR p.tg_id = ?1
         ORDER BY p.stars DESC, p.streak DESC, p.name LIMIT 50`).bind(id).all()).results;
     const rows = top.map((r, i) => row(r, i + 1));
     const total = (await env.DB.prepare('SELECT COUNT(*) n FROM profiles p JOIN users u ON u.tg_id = p.tg_id WHERE u.public = 1 OR p.tg_id = ?1').bind(id).first()).n;
     // свои профили, не попавшие в первые 50, показываем отдельной строкой с их местом
-    const mine = (await env.DB.prepare('SELECT p.tg_id, p.pid, p.name, p.avatar, p.char, p.stars, p.streak, u.photo FROM profiles p JOIN users u ON u.tg_id = p.tg_id WHERE p.tg_id = ? ORDER BY p.stars DESC').bind(id).all()).results;
+    const mine = (await env.DB.prepare(`SELECT p.tg_id, p.pid, p.name, p.avatar, p.char, p.stars, p.streak, CASE WHEN ph.img IS NOT NULL THEN '/photo/' || ph.key ELSE u.photo END photo FROM profiles p JOIN users u ON u.tg_id = p.tg_id
+        LEFT JOIN user_photos ph ON ph.tg_id = p.tg_id WHERE p.tg_id = ? ORDER BY p.stars DESC`).bind(id).all()).results;
     for (const m of mine){
       if (top.some(t => t.tg_id === m.tg_id && t.pid === m.pid)) continue;
       const above = (await env.DB.prepare('SELECT COUNT(*) n FROM profiles p JOIN users u ON u.tg_id = p.tg_id WHERE (u.public = 1 OR p.tg_id = ?1) AND p.stars > ?2').bind(id, m.stars).first()).n;
@@ -89,8 +123,8 @@ async function board(env, id, scope){
   if (!GROUP_RE.test(String(scope))) return null;
   const member = await env.DB.prepare('SELECT 1 x FROM members WHERE code = ? AND tg_id = ?').bind(scope, id).first();
   if (!member) return null;
-  const list = (await env.DB.prepare(`SELECT p.tg_id, p.name, p.avatar, p.char, p.stars, p.streak, u.photo FROM profiles p
-      JOIN members m ON m.tg_id = p.tg_id JOIN users u ON u.tg_id = p.tg_id WHERE m.code = ? ORDER BY p.stars DESC, p.streak DESC, p.name LIMIT 100`).bind(scope).all()).results;
+  const list = (await env.DB.prepare(`SELECT p.tg_id, p.name, p.avatar, p.char, p.stars, p.streak, CASE WHEN ph.img IS NOT NULL THEN '/photo/' || ph.key ELSE u.photo END photo FROM profiles p
+      JOIN members m ON m.tg_id = p.tg_id JOIN users u ON u.tg_id = p.tg_id LEFT JOIN user_photos ph ON ph.tg_id = p.tg_id WHERE m.code = ? ORDER BY p.stars DESC, p.streak DESC, p.name LIMIT 100`).bind(scope).all()).results;
   return { scope, total: list.length, rows: list.map((r, i) => row(r, i + 1)) };
 }
 
@@ -108,7 +142,8 @@ const DUEL_RE = /^[0-9a-f]{12}$/, Q_TYPES = ['listen', 'missing', 'wlisten', 'wr
 async function duelInfo(env, id, uid){
   const d = await env.DB.prepare('SELECT d.id, d.q, d.created, u.name owner FROM duels d LEFT JOIN users u ON u.tg_id = d.owner WHERE d.id = ?').bind(id).first();
   if (!d) return null;
-  const sc = (await env.DB.prepare('SELECT s.tg_id, s.pid, s.name, s.avatar, s.score, s.ms, u.photo FROM duel_scores s LEFT JOIN users u ON u.tg_id = s.tg_id WHERE s.id = ? ORDER BY s.score DESC, s.ms ASC').bind(id).all()).results;
+  const sc = (await env.DB.prepare(`SELECT s.tg_id, s.pid, s.name, s.avatar, s.score, s.ms, CASE WHEN ph.img IS NOT NULL THEN '/photo/' || ph.key ELSE u.photo END photo FROM duel_scores s LEFT JOIN users u ON u.tg_id = s.tg_id
+      LEFT JOIN user_photos ph ON ph.tg_id = s.tg_id WHERE s.id = ? ORDER BY s.score DESC, s.ms ASC`).bind(id).all()).results;
   let q = []; try { q = JSON.parse(d.q) } catch (e) {}
   return {
     id: d.id, created: d.created, owner: d.owner, q, invite: `https://t.me/${env.BOT_USERNAME}?start=duel_${id}`,
@@ -180,6 +215,9 @@ async function api(path, body, env){
     stmts.push(env.DB.prepare('UPDATE users SET tz = ?, last_active = COALESCE(?, last_active) WHERE tg_id = ?')
       .bind(int(body.tz, -840, 720, -180), lastActive, u.id));
     await env.DB.batch(stmts);
+    // фото обновляем раз в сутки; если его пока нет (скрыто настройками Telegram) — проверяем чаще, вдруг открыли
+    const seen = await env.DB.prepare('SELECT checked, img IS NOT NULL has FROM user_photos WHERE tg_id = ?').bind(u.id).first();
+    if (!seen || Date.now() - Date.parse(seen.checked) > (seen.has ? 864e5 : 3e5)) await refreshPhoto(env, u.id);
   }
   else if (path === '/api/board'){
     const b = await board(env, u.id, body.scope);
@@ -281,10 +319,19 @@ export default {
       if (!env.BOT_TOKEN) return json({ error: 'BOT_TOKEN is not set' }, 500);
       if (url.pathname === '/tg' && req.method === 'POST') return await webhook(req, env);
       if (url.pathname.startsWith('/api/') && req.method === 'POST') return await api(url.pathname, await req.json().catch(() => ({})), env);
+      const ph = /^\/photo\/([0-9a-f]{32})$/.exec(url.pathname);
+      if (ph && req.method === 'GET') return await servePhoto(env, ph[1]);
       if (url.pathname === '/setup'){
         const r = await tgApi(env, 'setWebhook', { url: url.origin + '/tg', secret_token: await hookSecret(env), allowed_updates: ['message'] });
         await tgApi(env, 'setMyCommands', { commands: [{ command: 'start', description: 'Открыть игру' }, { command: 'stop', description: 'Выключить напоминания' }] });
-        return json({ webhook: r.ok, detail: r.data && r.data.description });
+        // заодно подтягиваем фото тем, у кого его ещё не проверяли (понемногу за раз)
+        // ?recheck=1 — ещё раз проверить тех, у кого фото не нашлось
+        const again = url.searchParams.get('recheck') === '1';
+        const todo = (await env.DB.prepare(`SELECT u.tg_id FROM users u LEFT JOIN user_photos ph ON ph.tg_id = u.tg_id
+            WHERE ph.tg_id IS NULL ${again ? 'OR ph.img IS NULL' : ''} LIMIT 5`).all()).results;
+        const why = [];
+        for (const t of todo) why.push((await refreshPhoto(env, t.tg_id)).why);
+        return json({ webhook: r.ok, detail: r.data && r.data.description, photos: why });
       }
       if (url.pathname === '/') return json({ ok: true, service: 'tiny-english' });
       return json({ error: 'not found' }, 404);

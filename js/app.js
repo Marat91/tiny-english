@@ -105,8 +105,8 @@ function petCards(sel){
 
 /* Новый ученик или (если передан edit) изменение имени, иконки и друга */
 function addProfile(edit){
-  const icons = [...(tgPhoto() ? ['tg'] : []), ...AVATARS];
-  let pic0 = edit ? edit.avatar : (tgPhoto() && !db.profiles.length ? 'tg' : AVATARS[0]), ch = edit ? edit.char : CHARACTERS[0].id;
+  const icons = [...(ownPhoto() ? ['tg'] : []), ...AVATARS];
+  let pic0 = edit ? edit.avatar : (ownPhoto() && !db.profiles.length ? 'tg' : AVATARS[0]), ch = edit ? edit.char : CHARACTERS[0].id;
   const u = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
   const tgName = edit ? edit.name : u && !db.profiles.length ? u.first_name : '';
   render('add', `

@@ -18,6 +18,11 @@ async function post(path, body){
 async function call(path, body){
   const r = await post(path, body);
   if (r) srv = r;
+  if (r && 'photo' in r && (r.photo || '') !== myPhoto){               // сервер нашёл (или потерял) настоящее фото
+    myPhoto = r.photo || '';
+    try { localStorage.setItem(PHOTO_KEY, myPhoto) } catch(e){}
+    if (screen === 'home') home(); else if (screen === 'profiles') profiles();
+  }
   return r;
 }
 

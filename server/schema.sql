@@ -58,3 +58,11 @@ CREATE TABLE IF NOT EXISTS duel_scores (
   ms     INTEGER NOT NULL,
   PRIMARY KEY (id, tg_id, pid)
 );
+CREATE TABLE IF NOT EXISTS user_photos (
+  tg_id   INTEGER PRIMARY KEY,
+  key     TEXT NOT NULL,          -- случайный ключ для адреса /photo/<ключ>
+  img     BLOB,                   -- пусто, если фото нет или оно скрыто
+  type    TEXT,
+  checked TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS user_photos_key ON user_photos(key);

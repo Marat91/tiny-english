@@ -62,10 +62,15 @@ function loadCloud(done){
 
 /* Иконка ученика: эмодзи или 'tg' — фото из профиля Telegram (если его нет или оно скрыто — смайлик) */
 const tgPhoto = () => { try { const u = tg.initDataUnsafe.user.photo_url; return /^https:\/\//.test(u) ? u : '' } catch(e){ return '' } };
+/* Адрес фото: полный https или «/photo/<ключ>» на нашем сервере (настоящее фото, полученное через бота) */
+const photoSrc = u => /^\/photo\/[0-9a-f]{32}$/.test(u || '') ? API_URL + u : /^https:\/\//.test(u || '') ? u : '';
+const PHOTO_KEY = 'tiny-photo';
+let myPhoto = (() => { try { return localStorage.getItem(PHOTO_KEY) || '' } catch(e){ return '' } })();   // своё фото, как его отдал сервер
+const ownPhoto = () => photoSrc(myPhoto) || tgPhoto();
 function av(a, photo){
   if (a !== 'tg') return String(a || '🙂').replace(/[&<>"']/g, '');
   /* photo не передан — это ученик с этого устройства, берём своё фото; передан пустым — чужой игрок без фото */
-  const src = photo === undefined ? tgPhoto() : /^https:\/\//.test(photo || '') ? photo : '';
+  const src = photo === undefined ? ownPhoto() : photoSrc(photo);
   return src ? `<img class="avimg" src="${src.replace(/[&<>"']/g, c => '&#' + c.charCodeAt(0) + ';')}" alt="" onerror="this.replaceWith('🙂')">` : '🙂';
 }
 
