@@ -177,6 +177,13 @@ input.name:focus{border-color:var(--p)}
 .brow .bav{font-size:1.5em}
 .brow .bn{flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .brow .bs{white-space:nowrap}
+.bgap{text-align:center;color:var(--muted);font-weight:900;line-height:.6}
+.tabs{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 12px;margin:0 -2px 6px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:none;background:#fff;border-radius:999px;padding:10px 18px;font-weight:800;font-size:clamp(15px,2.4vw,18px);box-shadow:var(--sh);
+  white-space:nowrap;max-width:60vw;overflow:hidden;text-overflow:ellipsis;transition:transform .12s}
+.tab:active{transform:scale(.95)}
+.tab.on{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff;box-shadow:0 8px 18px rgba(91,91,240,.3)}
 .remind{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:6px}
 .remind select{font:inherit;font-weight:800;border:0;background:none;color:var(--p)}
 

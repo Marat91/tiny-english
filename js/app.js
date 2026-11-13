@@ -128,7 +128,7 @@ function home(){
   render('home', `
     <div class="top">
       <button class="chip" id="who">${p.avatar} ${esc(p.name)}</button>
-      <button class="chip" id="fam">👨‍👩‍👧 Семья</button>
+      <button class="chip" id="fam">🏆 Рейтинг</button>
       <span class="grow"></span>
       <span class="chip">⭐ ${t}</span>
       <span class="chip">🔥 ${liveStreak(p)}</span>
@@ -157,7 +157,7 @@ function home(){
       <div class="grid">${ALL.filter(L => L.t === tp).map(L => lessonCard(p, L)).join('')}</div>`).join('')}`);
   $('#who').onclick = profiles;
   $('#chg').onclick = choosePet;
-  $('#fam').onclick = family;
+  $('#fam').onclick = rating;
   $('#abc').onclick = () => alphabet();
   $('.pet').onclick = () => { petReact('ok'); say(c.hello) };
   $$('.lcard[data-id]').forEach(b => b.onclick = () => {
@@ -166,52 +166,105 @@ function home(){
   });
 }
 
-/* ================= Семья: общий рейтинг и напоминания ================= */
-function family(){
+/* ================= Рейтинг: все игроки, группы, напоминания ================= */
+let boardTab = 'all', boardData = null;
+const GROUP_IDEAS = ['Семья', 'Друзья', 'Класс'];
+
+function localBoard(){
+  return db.profiles
+    .map(p => ({name: p.name, avatar: p.avatar, char: p.char, stars: total(p), streak: liveStreak(p), mine: true}))
+    .sort((a, b) => b.stars - a.stars || b.streak - a.streak)
+    .map((r, i) => ({...r, rank: i + 1}));
+}
+function boardHTML(rows){
+  const medal = n => ['🥇','🥈','🥉'][n - 1] || n;
+  let prev = 0;
+  return `<div class="board">${rows.map(r => {
+    const gap = prev && r.rank > prev + 1 ? '<div class="bgap">⋯</div>' : '';
+    prev = r.rank;
+    return `${gap}<div class="brow ${r.mine ? 'mine' : ''}">
+      <span class="rk">${medal(r.rank)}</span><span class="bav">${esc(r.avatar)}</span>
+      <span class="bn">${esc(r.name)} <small>${petById(r.char).emoji}</small></span>
+      <span class="bs">⭐ ${r.stars}</span><span class="bs">🔥 ${r.streak}</span>
+    </div>`}).join('') || '<p class="sub">Пока никого нет</p>'}</div>`;
+}
+
+function rating(){
+  const on = online();
   const draw = () => {
-    if (screen !== 'family' && screen !== '') return;
-    const board = srv ? srv.board : db.profiles
-      .map(p => ({name: p.name, avatar: p.avatar, char: p.char, stars: total(p), streak: liveStreak(p), mine: true}))
-      .sort((a, b) => b.stars - a.stars || b.streak - a.streak);
-    const sum = board.reduce((a, r) => a + r.stars, 0);
-    const medal = i => ['🥇','🥈','🥉'][i] || (i + 1);
-    render('family', `
-      <div class="lbar"><button class="x" id="x">←</button><h2 style="margin:0;flex:1">Наша семья</h2><span style="width:48px"></span></div>
-      <p class="sub">Вместе мы собрали ⭐ ${sum}</p>
-      <div class="board">
-        ${board.map((r, i) => `<div class="brow ${r.mine ? 'mine' : ''}">
-          <span class="rk">${medal(i)}</span><span class="bav">${esc(r.avatar)}</span>
-          <span class="bn">${esc(r.name)} <small>${petById(r.char).emoji}</small></span>
-          <span class="bs">⭐ ${r.stars}</span><span class="bs">🔥 ${r.streak}</span>
-        </div>`).join('') || '<p class="sub">Пока никого нет</p>'}
-      </div>
-      ${!online() ? '<div class="note">Общий рейтинг с другими телефонами и напоминания работают, когда игра открыта в Telegram.</div>'
-        : !srv ? '<p class="sub" style="margin-top:14px">Загружаю…</p>' : `
-        <div class="center" style="margin-top:18px;gap:12px">
-          ${srv.family
-            ? `<p class="sub" style="margin:0">В семье аккаунтов Telegram: ${srv.family.members}</p>
-               <div class="row"><button class="btn" id="inv">Пригласить ещё</button><button class="btn ghost" id="leave">Выйти из семьи</button></div>`
-            : `<p class="sub" style="margin:0">Позови маму, папу или друзей — у вас будет общий рейтинг</p>
-               <button class="btn" id="mk">Пригласить семью</button>`}
-          <div class="remind">
-            <button class="chip" id="ron">${srv.remind_on ? '🔔 Напоминания включены' : '🔕 Напоминания выключены'}</button>
-            ${srv.remind_on ? `<label class="chip">в <select id="rh">${Array.from({length: 24}, (_, h) => `<option value="${h}" ${h === srv.remind_hour ? 'selected' : ''}>${h}:00</option>`).join('')}</select></label>` : ''}
+    if (screen !== 'rating' && screen !== '') return;
+    const groups = (srv && srv.groups) || [];
+    if (boardTab !== 'all' && boardTab !== 'new' && !groups.some(g => g.code === boardTab)) boardTab = 'all';
+    const g = groups.find(x => x.code === boardTab);
+    const rows = !on ? localBoard() : (boardData && boardData.scope === boardTab ? boardData.rows : null);
+    const tab = (id, label) => `<button class="tab ${boardTab === id ? 'on' : ''}" data-tab="${id}">${label}</button>`;
+
+    render('rating', `
+      <div class="lbar"><button class="x" id="x">←</button><h2 style="margin:0;flex:1">Рейтинг</h2><span style="width:46px"></span></div>
+      ${on ? `<div class="tabs">${tab('all', '🌍 Все')}${groups.map(x => tab(x.code, esc(x.name))).join('')}${tab('new', '＋ Группа')}</div>` : ''}
+
+      ${boardTab === 'new' ? `
+        <div class="stage">
+          <p class="task">Новая группа</p>
+          <p class="sub">Назови группу и позови в неё кого хочешь — у вас будет свой рейтинг</p>
+          <div class="center">
+            <input class="name" id="gn" maxlength="24" placeholder="Название">
+            <div class="row">${GROUP_IDEAS.map(n => `<button class="chip idea">${n}</button>`).join('')}</div>
+            <button class="btn" id="mk">Создать</button>
           </div>
-          <p class="sub" style="margin:0;font-size:14px">Напоминание приходит от бота раз в день, если сегодня ещё не занимались</p>
-        </div>`}`);
+        </div>`
+      : `
+        ${!on ? '' : boardTab === 'all'
+          ? `<p class="sub">Все, кто учит английский в Tiny English${boardData && boardData.scope === 'all' ? ` · ${boardData.total}` : ''}</p>`
+          : `<p class="sub">Участников: ${g.members} · вместе ⭐ ${rows ? rows.reduce((a, r) => a + r.stars, 0) : '…'}</p>`}
+        ${rows ? boardHTML(rows) : '<p class="sub">Загружаю…</p>'}
+        ${on && g ? `<div class="row" style="margin-top:18px">
+            <button class="btn" id="inv">Пригласить в группу</button>
+            <button class="btn ghost" id="leave">Выйти</button>
+          </div>` : ''}
+        ${on && srv && boardTab === 'all' && !groups.length ? `<div class="center" style="margin-top:18px;gap:10px">
+            <p class="sub" style="margin:0">Хочешь свой рейтинг с семьёй или друзьями?</p>
+            <button class="btn" data-tab="new">Создать группу</button></div>` : ''}`}
+
+      ${!on ? '<div class="note">Общий рейтинг, группы и напоминания работают, когда игра открыта в Telegram.</div>'
+        : !srv ? '' : `
+        <h3 class="sec">⚙️ Настройки</h3>
+        <div class="remind">
+          <button class="chip" id="ron">${srv.remind_on ? '🔔 Напоминания включены' : '🔕 Напоминания выключены'}</button>
+          ${srv.remind_on ? `<label class="chip">в <select id="rh">${Array.from({length: 24}, (_, h) => `<option value="${h}" ${h === srv.remind_hour ? 'selected' : ''}>${h}:00</option>`).join('')}</select></label>` : ''}
+          <button class="chip" id="pub">${srv.public ? '🌍 Меня видно в общем рейтинге' : '🙈 Меня не видно в общем рейтинге'}</button>
+        </div>
+        <p class="sub" style="margin:10px 0 0;font-size:14px">Напоминание приходит от бота раз в день, если сегодня ещё не занимались. В своих группах тебя видно всегда.</p>`}`);
+
     $('#x').onclick = home;
-    const share = () => {
-      const url = 'https://t.me/share/url?url=' + encodeURIComponent(srv.family.invite) + '&text=' + encodeURIComponent('Давай учить английский вместе в Tiny English!');
-      try { tg.openTelegramLink(url) } catch(e){}
+    $$('[data-tab]').forEach(b => b.onclick = () => { boardTab = b.dataset.tab; draw(); load() });
+    const settings = patch => call('/api/settings', {remind_on: srv.remind_on, remind_hour: srv.remind_hour, public: srv.public, ...patch});
+    if ($('#ron')) $('#ron').onclick = async () => { await settings({remind_on: !srv.remind_on}); draw() };
+    if ($('#rh')) $('#rh').onchange = async e => { await settings({remind_on: true, remind_hour: +e.target.value}); draw() };
+    if ($('#pub')) $('#pub').onclick = async () => { await settings({public: !srv.public}); boardData = null; draw(); load() };
+    $$('.idea').forEach(b => b.onclick = () => { $('#gn').value = b.textContent });
+    if ($('#mk')) $('#mk').onclick = async () => {
+      const name = $('#gn').value.trim();
+      if (!name) { $('#gn').focus(); return }
+      const r = await call('/api/group', {action: 'create', name});
+      if (r && r.created){ boardTab = r.created; draw(); load(); share(srv.groups.find(x => x.code === r.created)) }
+      else { buzz(); draw() }
     };
-    if ($('#inv')) $('#inv').onclick = share;
-    if ($('#mk')) $('#mk').onclick = async () => { await call('/api/family', {action: 'create'}); draw(); if (srv && srv.family) share() };
-    if ($('#leave')) $('#leave').onclick = async () => { await call('/api/family', {action: 'leave'}); draw() };
-    if ($('#ron')) $('#ron').onclick = async () => { await call('/api/settings', {remind_on: !srv.remind_on, remind_hour: srv.remind_hour}); draw() };
-    if ($('#rh')) $('#rh').onchange = async e => { await call('/api/settings', {remind_on: true, remind_hour: +e.target.value}); draw() };
+    if ($('#inv')) $('#inv').onclick = () => share(g);
+    if ($('#leave')) $('#leave').onclick = async () => { await call('/api/group', {action: 'leave', code: g.code}); boardTab = 'all'; boardData = null; draw(); load() };
+  };
+  const share = g => {
+    if (!g) return;
+    const url = 'https://t.me/share/url?url=' + encodeURIComponent(g.invite) + '&text=' + encodeURIComponent(`Давай учить английский вместе в Tiny English! Заходи в группу «${g.name}»`);
+    try { tg.openTelegramLink(url) } catch(e){}
+  };
+  const load = async () => {
+    if (!on || boardTab === 'new') return;
+    const want = boardTab, r = await post('/api/board', {scope: want});
+    if (r && boardTab === want){ boardData = r; if (screen === 'rating') draw() }
   };
   screen = ''; draw();
-  if (online()) syncServer().then(() => { if (screen === 'family') draw() });
+  if (on) syncServer().then(() => { if (screen === 'rating'){ draw(); load() } });
 }
 
 /* ================= Алфавит (свободный просмотр) ================= */
