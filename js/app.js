@@ -12,13 +12,30 @@ const pic = x => x.c ? `<span class="sw" style="background:${x.c}"></span>` : x.
 const myPet = () => petById((me() || {}).char);
 function petReact(kind){
   const d = $('.pet'); if (!d) return;
-  d.classList.remove('jump','sad'); void d.getBoundingClientRect();
+  d.classList.remove('jump','sad','dance'); void d.getBoundingClientRect();
   d.classList.add(kind === 'ok' ? 'jump' : 'sad');
+  clearTimeout(d._cls);
+  d._cls = setTimeout(() => d.classList.remove('jump','sad'), 900);   // после реакции возвращаемся в покой
   const c = d.dataset.char && petById(d.dataset.char), im = d.querySelector('img');
   if (c && c.img && im){                                   // у персонажа-картинки меняем позу
     im.src = kind === 'ok' ? c.img.happy : c.img.sad;
     clearTimeout(d._pose);
     d._pose = setTimeout(() => { if (im.isConnected) im.src = c.img.idle }, 1200);
+    if (kind === 'ok') sparkle(d);
+  }
+}
+/* Звёздочки веером вверх от персонажа */
+function sparkle(d){
+  const size = d.offsetWidth;
+  for (let i = 0; i < 7; i++){
+    const s = document.createElement('span');
+    s.className = 'spark'; s.textContent = i % 2 ? '✨' : '⭐';
+    const a = (-155 + i * 21.5 + Math.random() * 8) * Math.PI / 180, r = size * (.5 + Math.random() * .3);
+    s.style.setProperty('--dx', Math.round(Math.cos(a) * r) + 'px');
+    s.style.setProperty('--dy', Math.round(Math.sin(a) * r) + 'px');
+    s.style.animationDelay = (i * 25) + 'ms';
+    d.appendChild(s);
+    setTimeout(() => s.remove(), 1100);
   }
 }
 
@@ -365,7 +382,7 @@ function finish(){
   render('finish', `
     <div class="stage" style="margin-top:24px">
       <div class="center">
-        ${petSVG(p.char, after, 'jump')}
+        ${petSVG(p.char, after, stars >= 2 ? 'jump dance' : '')}
         <h1>${praise.en}</h1>
         <p class="sub" style="margin:0">${praise.ru}</p>
         <div class="stars">${[1, 2, 3].map(n => `<span class="${n <= stars ? '' : 'off'}">⭐</span>`).join('')}</div>
