@@ -1,7 +1,7 @@
 /* Прогресс: хранится на устройстве и, если игра открыта внутри Telegram, дублируется
    в облако Telegram (CloudStorage) — тогда он доступен с любого устройства того же аккаунта. */
 const tg = window.Telegram && window.Telegram.WebApp;
-if (tg) { try { tg.ready(); tg.expand() } catch(e){} }
+if (tg) { try { tg.ready(); tg.expand(); tg.setHeaderColor('#f3f5fd'); tg.setBackgroundColor('#f3f5fd') } catch(e){} }
 
 const KEY = 'tiny-v2', OLD_KEY = 'buddy-v1', MAX_PROFILES = 8, CLOUD_LIMIT = 4096;
 

@@ -31,7 +31,7 @@ const ALL = [
 function profiles(){
   render('profiles', `
     <div class="center" style="margin-top:8px">${petSVG('dog', 0)}</div>
-    <h1>Tiny English</h1>
+    <h1 class="brand">Tiny English</h1>
     <p class="sub">Кто сегодня занимается?</p>
     <div class="plist">
       ${db.profiles.map(p => `<button class="pcard" data-id="${p.id}"><span class="av">${p.avatar}</span>${esc(p.name)}<small>⭐ ${total(p)} · 🔥 ${liveStreak(p)}</small></button>`).join('')}
@@ -90,10 +90,11 @@ function lessonCard(p, L){
   const face = L.kind === 'abc' ? `<div class="ls">${L.set.map(x => x.u).join('')}</div>`
                                 : `<div class="ls pics">${L.set.slice(0, 5).map(pic).join('')}</div>`;
   return `<button class="lcard c${L.i % 6} ${locked ? 'locked' : ''}" data-id="${L.id}">
-    <div class="num">Урок ${L.i + 1}</div>${face}
-    <div class="st">${locked ? '🔒' : '⭐'.repeat(st) + '☆'.repeat(3 - st)}</div>
+    ${face}
+    <div class="meta"><span class="num">Урок ${L.i + 1}</span>${locked ? '<span class="st">🔒</span>' : starsHTML(st)}</div>
   </button>`;
 }
+const starsHTML = n => `<span class="st">${[1, 2, 3].map(i => `<i class="${i <= n ? 'on' : ''}">★</i>`).join('')}</span>`;
 
 function home(){
   const p = me(); if (!p) return profiles();
@@ -109,21 +110,24 @@ function home(){
       <span class="chip">⭐ ${t}</span>
       <span class="chip">🔥 ${liveStreak(p)}</span>
     </div>
-    <div class="petwrap">
+    <div class="hero">
+      <div class="hero-txt">
+        <div class="hi">${hello[0]}</div>
+        <div class="hi-ru">${hello[1]}</div>
+        ${nextToy
+          ? `<div class="toy">Ещё ${nextToy.at - t} ⭐ — и у ${c.name} появится ${nextToy.icon} ${nextToy.name}</div>
+             <div class="toybar"><i style="width:${Math.max(4, Math.round((t - prevAt) / (nextToy.at - prevAt) * 100))}%"></i></div>`
+          : `<div class="toy">У ${c.name} есть все подарки! 🎉</div>`}
+        <button class="link" id="chg">Сменить друга</button>
+      </div>
       ${petSVG(p.char, t)}
-      <div class="bubble">${hello[0]}<small>${hello[1]}</small></div>
     </div>
-    <div class="center" style="gap:0"><button class="link" id="chg">Сменить друга</button></div>
-    ${nextToy
-      ? `<p class="sub" style="margin-bottom:4px">Ещё ${nextToy.at - t} ⭐ — и у ${c.name} появится ${nextToy.icon} ${nextToy.name}</p>
-         <div class="toybar"><i style="width:${Math.round((t - prevAt) / (nextToy.at - prevAt) * 100)}%"></i></div>`
-      : `<p class="sub">У ${c.name} есть все подарки! 🎉</p>`}
     ${hasSound() ? '' : '<div class="note">🔇 Звук пока не загрузился — проверь интернет и открой игру ещё раз.</div>'}
 
     <h3 class="sec">🔤 Алфавит</h3>
     <div class="grid">
       ${ALL.filter(L => L.kind === 'abc').map(L => lessonCard(p, L)).join('')}
-      <button class="lcard" id="abc"><div class="num">Все буквы</div><div class="ls">🔤</div><div class="st" style="font-size:18px;font-weight:800">Послушать</div></button>
+      <button class="lcard" id="abc"><div class="ls">🔤</div><div class="meta"><span class="num">Все буквы</span><span class="st">🔊</span></div></button>
     </div>
     ${TOPICS.map((tp, ti) => `
       <h3 class="sec">${tp.icon} ${tp.title}${done < ti + 1 ? ` <small>🔒 откроется после урока ${ti + 1} алфавита</small>` : ''}</h3>
