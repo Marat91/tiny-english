@@ -198,3 +198,10 @@ input.name:focus{border-color:var(--p)}
 @media (prefers-reduced-motion:reduce){
   #app > *, .pet, .pet .tail, .stars span{animation:none !important}
 }
+
+/* персонаж-картинка: жёсткие границы, чтобы он не вылезал из карточки ни на каком экране */
+.pet.pic{max-width:42vw;max-height:42vw}
+.pet.pic img{max-width:100%;max-height:100%}
+.hero .pet.pic{align-self:center;margin:4px 0}
+.hero .pet.jump{animation:herojump .6s ease}
+@keyframes herojump{30%{transform:translateY(-8px) rotate(-5deg) scale(1.04)}60%{transform:translateY(0) rotate(3deg)}}

@@ -17,7 +17,7 @@ function petSVG(id, stars, cls){
     const toys = TOYS.filter(t => stars >= t.at).map(t => t.icon).join('');
     const pose = /\bjump\b/.test(cls || '') ? c.img.happy : c.img.idle;
     return `<div class="pet pic ${cls || ''}" role="img" aria-label="${c.name}" data-char="${c.id}">
-      <img src="${pose}" alt="" draggable="false">${toys ? `<span class="toys">${toys}</span>` : ''}</div>`;
+      <img src="${pose}" alt="" draggable="false" width="640" height="640" style="max-width:100%;height:auto">${toys ? `<span class="toys">${toys}</span>` : ''}</div>`;
   }
   return `<svg class="pet ${cls || ''}" viewBox="0 -18 240 284" role="img" aria-label="${c.name}">
     ${c.svg}
