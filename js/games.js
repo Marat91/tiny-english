@@ -49,7 +49,7 @@ function gameOver(id, score, replay){
   const p = me(), hi = p.hi || (p.hi = {}), time = id === 'm';
   const best = hi[id] == null || (time ? score < hi[id] : score > hi[id]);
   if (best && (time || score > 0)) hi[id] = score;
-  const got = gameBones(p, time ? 4 : Math.min(8, Math.ceil(score / 2)));
+  const got = gameBones(p, time ? 4 : Math.min(8, Math.ceil(score / (id === 'b' ? 3 : 2))));
   p.gp = (p.gp || 0) + 1; dayMark(p, 'r'); touchStreak(p); saveStat(p); save();
   G = null; hush();
   render('gameover', `
@@ -67,47 +67,53 @@ function gameOver(id, score, replay){
 }
 
 /* ---------- Шарики ---------- */
+const BAL_NEED = 10;                                      // сколько раз подряд ловим одно слово
 function gameBalloons(){
   const set = gameSet(me()); if (!set) return games();
   const g = G = {score: 0, target: null, opts: [], n: 0, lock: false};
   render('game', `
     ${gameBar('🎈')}
     <div class="stage gstage">
-      <div class="row"><button class="btn round" id="snd">🔊</button><p class="task" style="margin:0">Лопни шарик, который услышишь</p></div>
+      <div class="row"><button class="btn round" id="snd">🔊</button><p class="task" style="margin:0">Лопай шарики с тем, что услышишь</p><span class="chip" id="left"></span></div>
       <div class="sky" id="sky"></div>
     </div>`);
   const sky = $('#sky');
   sky.style.setProperty('--h', (sky.offsetHeight + 260) + 'px');
   $('#x').onclick = () => { G = null; hush(); games() };
   $('#snd').onclick = () => say(gSay(g.target));
+  /* Шарики летят без остановки. Одно и то же слово нужно поймать BAL_NEED раз — потом загадывается новое. */
   const round = first => {
-    g.target = pick(set.filter(x => x !== g.target));
+    const old = g.target;
+    g.target = pick(set.filter(x => x !== old));
     g.opts = shuffle(set.filter(x => x !== g.target)).slice(0, 3);
-    g.n = 0; g.lock = false; sky.innerHTML = '';
+    g.got = 0; g.n = 0;
+    [...sky.children].forEach(b => { if (b.x === old || b.x === g.target){ b.dead = true; b.classList.add('miss') } });   // чтобы старые шарики не путали
+    $('#left').textContent = 'ещё ' + BAL_NEED;
     first ? say('ru:g_b', 300, gSay(g.target)) : say(gSay(g.target));
   };
   const spawn = () => {
-    const x = (g.n++ % 3 === 1 || Math.random() < .2) ? g.target : pick(g.opts);
+    const x = (g.n++ % 2 === 1 || Math.random() < .15) ? g.target : pick(g.opts);
     const b = document.createElement('button');
+    b.x = x;
     b.className = 'bal b' + Math.floor(Math.random() * 6);
     b.style.left = (3 + Math.random() * 74) + '%';
     b.style.animationDuration = (5.5 + Math.random() * 2) + 's';
     b.innerHTML = `<span>${gFace(x)}</span>`;
     b.onpointerdown = e => {
       e.preventDefault();
-      if (!gAlive(g) || g.lock || b.dead) return;
+      if (!gAlive(g) || b.dead) return;
       b.dead = true;
       if (x === g.target){
-        g.lock = true; g.score++; $('#sc').textContent = '🎈 ' + g.score; ding(); b.classList.add('pop');
-        setTimeout(() => { if (gAlive(g)) round() }, 500);
+        g.score++; g.got++; $('#sc').textContent = '🎈 ' + g.score; ding(); b.classList.add('pop');
+        if (g.got >= BAL_NEED) round(); else { $('#left').textContent = 'ещё ' + (BAL_NEED - g.got); say(gSay(g.target)) }
       } else { buzz(); b.classList.add('miss') }
     };
     b.onanimationend = () => b.remove();
     sky.appendChild(b);
   };
   round(true);
-  const iv = setInterval(() => { if (!gAlive(g)) return clearInterval(iv); if (!g.lock) spawn() }, 800);
-  gameClock(g, 48, () => { clearInterval(iv); gameOver('b', g.score, gameBalloons) });
+  const iv = setInterval(() => { if (!gAlive(g)) return clearInterval(iv); spawn() }, 750);
+  gameClock(g, 63, () => { clearInterval(iv); gameOver('b', g.score, gameBalloons) });
 }
 
 /* ---------- Да или нет ---------- */
