@@ -26,15 +26,18 @@ function tts(text, done){
   u.onend = () => done && done();
   speechSynthesis.speak(u);
 }
-/* say('A', 'apple') — произносит по очереди; новый вызов обрывает предыдущий */
+/* say('A', 'apple') — произносит по очереди; новый вызов обрывает предыдущий.
+   Число в списке — пауза; 'ru:<вид>' — задание по-русски из записи. */
 function say(...texts){
   hush();
   const my = sayToken;
   let i = 0;
   const next = () => {
     if (my !== sayToken || i >= texts.length) return;
-    const t = texts[i++], clip = clipFor(t);
-    if (!clip) return tts(t, next);
+    const t = texts[i++];
+    if (typeof t === 'number') return setTimeout(next, t);       // пауза в миллисекундах
+    const clip = clipFor(t);
+    if (!clip) return t.startsWith('ru:') ? next() : tts(t, next); // русские задания есть только в записи
     player.onended = next;
     player.onerror = () => { if (my === sayToken) tts(t, next) };
     player.src = 'data:audio/mp4;base64,' + clip;

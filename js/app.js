@@ -373,8 +373,9 @@ function startExam(L){
       <div class="row" style="font-size:34px;letter-spacing:6px">🥇🥈🥉</div>
       <button class="btn" id="go">Начать →</button>
     </div></div>`);
-  $('#x').onclick = () => { S = null; home() };
+  $('#x').onclick = () => { hush(); S = null; home() };
   $('#go').onclick = step;
+  task('exam');
 }
 
 /* Повторение: до 10 слов, которым пришёл срок. Верно с первого раза — слово уходит дальше, ошибка — вернётся завтра. */
@@ -401,6 +402,15 @@ function frame(inner){
     <div class="lbar"><button class="x" id="x">✕</button><div class="prog"><i style="width:${Math.round(S.pos / S.steps.length * 100)}%"></i></div></div>
     <div class="stage">${inner}</div>`);
   $('#x').onclick = () => { hush(); S = null; home() };
+  const t = $('.stage .task'), key = S.cur && 'ru:' + S.cur.t;
+  if (t && key && clipFor(key)){ t.classList.add('say'); t.onclick = () => say(key) }
+}
+/* Задание по-русски звучит один раз за урок для каждого вида задания, после паузы — английское слово */
+function task(type, ...texts){
+  const key = 'ru:' + type;
+  S.told = S.told || new Set();
+  if (!S.told.has(type) && clipFor(key)){ S.told.add(type); say(key, 350, ...texts) }
+  else if (texts.length) say(...texts);
 }
 function advance(){ if (!S) return; S.pos++; S.pos >= S.steps.length ? finish() : step() }
 const STEPS = {};
@@ -436,7 +446,7 @@ STEPS.intro = ({x}) => {
   $('#bl').onclick = $('#snd').onclick = () => say(x.u);
   $('#wr').onclick = () => say(x.word);
   $('#go').onclick = advance;
-  say(x.u, x.word);
+  task('intro', x.u, x.word);
 };
 STEPS.listen = ({x}) => {
   frame(`
@@ -445,7 +455,7 @@ STEPS.listen = ({x}) => {
     ${optsHTML(x, o => `<span class="up">${o.u}</span><span class="lo">${o.l}</span>`)}`);
   $('#snd').onclick = () => say(x.u);
   wireOptions(x, () => later(advance, 900));
-  say(x.u);
+  task('listen', x.u);
 };
 STEPS.missing = ({x}) => {
   const i = x.word.toLowerCase().indexOf(x.l);
@@ -458,7 +468,7 @@ STEPS.missing = ({x}) => {
     ${optsHTML(x, o => `<span class="lo">${o.l}</span>`)}`);
   $('#em').onclick = () => say(x.word);
   wireOptions(x, () => { $('#gap').innerHTML = gap(true); later(() => say(x.word), 350); later(advance, 1700) });
-  say(x.word);
+  task('missing', x.word);
 };
 STEPS.pairs = ({set}) => pairsGame('Найди пары: большая и маленькая буква',
   set.flatMap(x => [{k: x.u, s: x.u}, {k: x.u, s: x.l}]), set.length);
@@ -473,7 +483,7 @@ STEPS.wintro = ({x}) => {
     <div class="row"><button class="btn round ghost" id="snd">🔊</button><button class="btn" id="go">Дальше →</button></div>`);
   $('#em').onclick = $('#bw').onclick = $('#snd').onclick = () => say(x.en);
   $('#go').onclick = advance;
-  say(x.en);
+  task('wintro', x.en);
 };
 STEPS.wlisten = ({x}) => {
   frame(`
@@ -482,7 +492,7 @@ STEPS.wlisten = ({x}) => {
     ${optsHTML(x, pic)}`);
   $('#snd').onclick = () => say(x.en);
   wireOptions(x, () => later(advance, 900));
-  say(x.en);
+  task('wlisten', x.en);
 };
 STEPS.wread = ({x}) => {
   frame(`
@@ -491,6 +501,7 @@ STEPS.wread = ({x}) => {
     <p class="ruhint" style="margin:0">${x.ru}</p>
     ${optsHTML(x, o => esc(o.en), 'word')}`);
   wireOptions(x, () => { later(() => say(x.en), 300); later(advance, 1600) });
+  task('wread');
 };
 STEPS.whear = ({x}) => {
   frame(`
@@ -499,7 +510,7 @@ STEPS.whear = ({x}) => {
     ${optsHTML(x, o => esc(o.en), 'word')}`);
   $('#snd').onclick = () => say(x.en);
   wireOptions(x, () => later(advance, 900));
-  say(x.en);
+  task('whear', x.en);
 };
 STEPS.wpairs = ({set}) => pairsGame('Найди пары: картинка и слово',
   set.flatMap(x => [{k: x.en, s: pic(x)}, {k: x.en, s: esc(x.en), txt: true}]), set.length);
@@ -510,6 +521,7 @@ function pairsGame(title, deck, need){
   frame(`
     <p class="task">${title}</p>
     <div class="pairs">${cards.map((c, i) => `<button class="pc" data-i="${i}"><span class="back">🐾</span><span class="front ${c.txt ? 'txt' : ''}">${c.s}</span></button>`).join('')}</div>`);
+  task(S.cur.t);
   $$('.pc').forEach(b => b.onclick = () => {
     if (lock || b.classList.contains('open')) return;
     b.classList.add('open'); say(cards[+b.dataset.i].k); open.push(b);
