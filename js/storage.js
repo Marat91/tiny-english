@@ -60,19 +60,26 @@ function loadCloud(done){
   } catch(e){ end(false) }
 }
 
-const me = () => db.profiles.find(p => p.id === db.cur);
+let playAs = null;                                                  // в дуэли на одном устройстве ходит другой ученик
+const me = () => db.profiles.find(p => p.id === (playAs || db.cur));
 const total = p => Object.values(p.stars).reduce((a,b) => a + b, 0);
 const dayStr = d => { const z = n => String(n).padStart(2,'0'); return d.getFullYear() + '-' + z(d.getMonth()+1) + '-' + z(d.getDate()) };
+const DAY0 = Date.UTC(2026, 0, 1);
+const dayNo = () => Math.floor((Date.now() - new Date().getTimezoneOffset() * 60000 - DAY0) / 864e5);   // номер сегодняшнего дня
+/* Серия дней. Если пропущен ровно один день и есть «заморозка» (p.fr) — серия не сгорает. */
 function touchStreak(p){
   const today = dayStr(new Date());
   if (p.last === today) return;
-  const y = dayStr(new Date(Date.now() - 864e5));
-  p.streak = p.last === y ? (p.streak || 0) + 1 : 1;
+  const y = dayStr(new Date(Date.now() - 864e5)), y2 = dayStr(new Date(Date.now() - 2 * 864e5));
+  if (p.last === y) p.streak = (p.streak || 0) + 1;
+  else if (p.last === y2 && p.fr > 0 && p.streak > 0){ p.fr--; p.streak++ }
+  else p.streak = 1;
   p.last = today;
+  p.ms = Math.max(p.ms || 0, p.streak);                             // рекорд серии
 }
 function liveStreak(p){
-  const today = dayStr(new Date()), y = dayStr(new Date(Date.now() - 864e5));
-  return (p.last === today || p.last === y) ? (p.streak || 0) : 0;
+  const today = dayStr(new Date()), y = dayStr(new Date(Date.now() - 864e5)), y2 = dayStr(new Date(Date.now() - 2 * 864e5));
+  return (p.last === today || p.last === y || (p.last === y2 && p.fr > 0)) ? (p.streak || 0) : 0;
 }
 
 /* Повторение: для каждого выученного слова — «коробка» (0–5) и номер дня следующего показа.
@@ -88,20 +95,47 @@ function saveRev(p){
     if (s.length <= CLOUD_LIMIT) { try { cloud.setItem('rev_' + p.id, s) } catch(e){} }
   }
 }
+/* Статистика для родителей: сколько ответов и ошибок, в какие дни занимались, какие слова даются трудно.
+   a — ответов, e — ошибок, x — {слово: сколько раз ошибся}, d — {номер дня: ответов}. */
+const ST_KEY = 'tiny-st-v1';
+let stat = (() => { try { return JSON.parse(localStorage.getItem(ST_KEY)) || {} } catch(e){ return {} } })();
+const statOf = p => stat[p.id] || (stat[p.id] = {ts: 0, a: 0, e: 0, x: {}, d: {}});
+function track(p, key, ok){
+  if (!p) return;
+  const s = statOf(p), d = dayNo();
+  s.a++; s.d[d] = (s.d[d] || 0) + 1;
+  if (!ok){ s.e++; s.x[key] = (s.x[key] || 0) + 1 }
+  else if (s.x[key]){ if (--s.x[key] <= 0) delete s.x[key] }       // ответил верно — слово перестаёт быть трудным
+  try { localStorage.setItem(ST_KEY, JSON.stringify(stat)) } catch(e){}
+}
+function saveStat(p){
+  const s = statOf(p), d = dayNo(); s.ts = Date.now();
+  for (const k in s.d) if (+k < d - 60) delete s.d[k];
+  const top = Object.entries(s.x).sort((a, b) => b[1] - a[1]).slice(0, 40);
+  s.x = Object.fromEntries(top);
+  try { localStorage.setItem(ST_KEY, JSON.stringify(stat)) } catch(e){}
+  if (cloud){
+    const j = JSON.stringify(s);
+    if (j.length <= CLOUD_LIMIT) { try { cloud.setItem('st_' + p.id, j) } catch(e){} }
+  }
+}
+
 function loadCloudRev(done){
   if (!cloud || !db.profiles.length) return done();
   let fin = false;
   const end = () => { if (!fin){ fin = true; done() } };
   setTimeout(end, 2000);
   try {
-    cloud.getItems(db.profiles.map(p => 'rev_' + p.id), (err, vals) => {
+    cloud.getItems(db.profiles.flatMap(p => ['rev_' + p.id, 'st_' + p.id]), (err, vals) => {
       if (!err && vals) for (const p of db.profiles){
         try {
           const r = JSON.parse(vals['rev_' + p.id] || 'null');
           if (r && r.m && (r.ts || 0) > ((rev[p.id] || {}).ts || 0)) rev[p.id] = r;
+          const s = JSON.parse(vals['st_' + p.id] || 'null');
+          if (s && s.d && s.x && (s.ts || 0) > ((stat[p.id] || {}).ts || 0)) stat[p.id] = s;
         } catch(e){}
       }
-      try { localStorage.setItem(REV_KEY, JSON.stringify(rev)) } catch(e){}
+      try { localStorage.setItem(REV_KEY, JSON.stringify(rev)); localStorage.setItem(ST_KEY, JSON.stringify(stat)) } catch(e){}
       end();
     });
   } catch(e){ end() }

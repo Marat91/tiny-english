@@ -45,6 +45,7 @@ const topicDone = (p, t) => t.lessons.every((_, i) => p.stars[t.id + ':' + i] > 
 /* Первые пять тем открываются по одной после уроков алфавита, дальше — после предыдущей темы */
 const topicOpen = (p, ti) => abcDone(p) >= Math.min(ti + 1, ABC.length) && (ti < 5 || topicDone(p, TOPICS[ti - 1]));
 function isLocked(p, L){
+  if (L.kind === 'phrase') return !(topicOpen(p, L.ti) && topicDone(p, L.t));
   if (L.kind === 'exam') return L.t ? !(topicOpen(p, L.ti) && topicDone(p, L.t)) : abcDone(p) < ABC.length;
   if (L.kind === 'abc') return L.i > 0 && !(p.stars['abc:' + (L.i - 1)] > 0);
   return !topicOpen(p, L.ti) || (L.i > 0 && !(p.stars[L.t.id + ':' + (L.i - 1)] > 0));
@@ -56,12 +57,11 @@ const ALL = [
     ...t.lessons.map((set, i) => ({id: t.id + ':' + i, kind: 'word', t, ti, i, set})),
     {id: t.id + ':x', kind: 'exam', t, ti, set: t.lessons.flat()},
   ]),
+  ...PHRASES.map((ph, i) => { const ti = TOPICS.findIndex(t => t.id === ph.topic); return {id: 'ph:' + i, kind: 'phrase', i, ph, t: TOPICS[ti], ti, set: ph.set} }),
 ];
 const plural = (n, one, few, many) => { const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many };
 
 /* ---------- повторение: когда какое слово показывать снова ---------- */
-const DAY0 = Date.UTC(2026, 0, 1);
-const dayNo = () => Math.floor((Date.now() - new Date().getTimezoneOffset() * 60000 - DAY0) / 864e5);
 const GAPS = [1, 2, 4, 7, 14, 30];                       // через сколько дней повторять после каждого верного ответа
 const revKey = x => x.u ? 'L:' + x.u : 'W:' + x.en;
 const ITEMS = {};
@@ -71,7 +71,7 @@ TOPICS.forEach(t => t.lessons.flat().forEach(x => { ITEMS[revKey(x)] = {x, t} })
 function seedRev(p){
   const m = revOf(p).m, d = dayNo(); let added = 0;
   /* по 10 в день, чтобы не вывалить на ребёнка сразу всё пройденное */
-  ALL.forEach(L => { if (L.kind !== 'exam' && p.stars[L.id] > 0) L.set.forEach(x => { const k = revKey(x); if (!m[k]) m[k] = [0, d + Math.floor(added++ / 10)] }) });
+  ALL.forEach(L => { if (L.kind !== 'exam' && L.kind !== 'phrase' && p.stars[L.id] > 0) L.set.forEach(x => { const k = revKey(x); if (!m[k]) m[k] = [0, d + Math.floor(added++ / 10)] }) });
   if (added) saveRev(p);
 }
 function grade(p, x, ok){
@@ -136,8 +136,8 @@ function choosePet(){
     <div class="lbar"><button class="x" id="x">←</button><h2 style="margin:0;flex:1">Выбери друга</h2><span style="width:48px"></span></div>
     <p class="sub">Звёзды и подарки останутся с тобой</p>
     ${petCards(p.char)}`);
-  $('#x').onclick = home;
-  $$('.petcard').forEach(b => b.onclick = () => { p.char = b.dataset.c; save(); home(); say(myPet().hello) });
+  $('#x').onclick = () => room();
+  $$('.petcard').forEach(b => b.onclick = () => { p.char = b.dataset.c; save(); room(); say(myPet().hello) });
 }
 
 /* ================= Главная ================= */
@@ -150,6 +150,11 @@ function lessonCard(p, L){
       <div class="meta"><span class="num">Испытание</span><span class="st">${locked ? '🔒' : medal ? 'пройдено' : '▶'}</span></div>
     </button>`;
   }
+  if (L.kind === 'phrase')
+    return `<button class="lcard c${(L.i + 3) % 6} ${locked ? 'locked' : ''}" data-id="${L.id}">
+      <div class="ls phr">${esc(L.ph.pat.replace('…', ''))}<span>${pic(L.set[0])}</span></div>
+      <div class="meta"><span class="num">💬 Фразы</span>${locked ? '<span class="st">🔒</span>' : starsHTML(st)}</div>
+    </button>`;
   const face = L.kind === 'abc' ? `<div class="ls">${L.set.map(x => x.u).join('')}</div>`
                                 : `<div class="ls pics">${L.set.slice(0, 5).map(pic).join('')}</div>`;
   return `<button class="lcard c${L.i % 6} ${locked ? 'locked' : ''}" data-id="${L.id}">
@@ -160,9 +165,11 @@ function lessonCard(p, L){
 const starsHTML = n => `<span class="st">${[1, 2, 3].map(i => `<i class="${i <= n ? 'on' : ''}">★</i>`).join('')}</span>`;
 
 function home(){
+  playAs = null;
   const p = me(); if (!p) return profiles();
+  if (p.b == null) p.b = total(p) * 2;                    // тем, кто играл до появления косточек, — за уже набранные звёзды
   seedRev(p);
-  const c = myPet(), t = total(p), done = abcDone(p);
+  const c = myPet(), t = total(p), done = abcDone(p), fed = p.fed === dayNo();
   const dueN = dueItems(p).length, learned = Object.keys(revOf(p).m).length;
   const nextToy = TOYS.find(x => x.at > t);
   const prevAt = ([...TOYS].reverse().find(x => x.at <= t) || {at: 0}).at;
@@ -170,10 +177,10 @@ function home(){
   render('home', `
     <div class="top">
       <button class="chip" id="who">${p.avatar} ${esc(p.name)}</button>
-      <button class="chip" id="fam">🏆 Рейтинг</button>
       <span class="grow"></span>
+      <span class="chip">🦴 ${bones(p)}</span>
       <span class="chip">⭐ ${t}</span>
-      <span class="chip">🔥 ${liveStreak(p)}</span>
+      <span class="chip">🔥 ${liveStreak(p)}${p.fr ? ' ❄️' : ''}</span>
     </div>
     <div class="hero">
       <div class="hero-txt">
@@ -183,11 +190,18 @@ function home(){
           ? `<div class="toy">Ещё ${nextToy.at - t} ⭐ — и у ${c.name} появится ${nextToy.icon} ${nextToy.name}</div>
              <div class="toybar"><i style="width:${Math.max(4, Math.round((t - prevAt) / (nextToy.at - prevAt) * 100))}%"></i></div>`
           : `<div class="toy">У ${c.name} есть все подарки! 🎉</div>`}
-        <button class="link" id="chg">Сменить друга</button>
+        <button class="link" id="chg">${fed ? `🏠 В гости к ${c.name}` : `🦴 Покормить: ${c.name} хочет есть`}</button>
       </div>
       ${petSVG(p.char, t)}
     </div>
     ${hasSound() ? '' : '<div class="note">🔇 Звук пока не загрузился — проверь интернет и открой игру ещё раз.</div>'}
+    <div class="menu">
+      <button id="m-games"><i>🎮</i>Игры</button>
+      <button id="m-room"><i>🏠</i>Комната</button>
+      <button id="m-album"><i>📒</i>Альбом</button>
+      <button id="fam"><i>🏆</i>Рейтинг</button>
+    </div>
+    ${dailyHTML(p)}
 
     ${dueN
       ? `<button class="review" id="rev"><span class="rv-ic">🔁</span><span class="rv-t"><b>Повторение</b>
@@ -204,9 +218,14 @@ function home(){
         <div class="grid">${ALL.filter(L => L.t === tp).map(L => lessonCard(p, L)).join('')}</div>`;
       const why = done < Math.min(ti + 1, ABC.length) ? (ti < 5 ? `после урока ${ti + 1} алфавита` : 'после всего алфавита') : `после темы «${TOPICS[ti - 1].title}»`;
       return `<div class="locked-topic"><span>${tp.icon} ${tp.title}</span><small>🔒 откроется ${why}</small></div>`;
-    }).join('')}`);
+    }).join('')}
+    <div class="center" style="margin-top:30px"><button class="link" id="par">👨‍👩‍👧 Для родителей</button></div>`);
   $('#who').onclick = profiles;
-  $('#chg').onclick = choosePet;
+  $('#chg').onclick = $('#m-room').onclick = () => room();
+  $('#m-games').onclick = games;
+  $('#m-album').onclick = album;
+  $('#par').onclick = () => parents();
+  $('#chest').onclick = () => openChest();
   $('#fam').onclick = rating;
   if ($('#rev')) $('#rev').onclick = startReview;
   $('#abc').onclick = () => alphabet();
@@ -347,13 +366,19 @@ function startLesson(L){
   let listen = shuffle([...set, ...set]);
   for (let k = 0; k < 30 && listen.some((x, j) => j && x === listen[j - 1]); k++) listen = shuffle(listen);
   const T = L.kind === 'abc' ? ['intro', 'listen', 'missing', 'pairs'] : ['wintro', 'wlisten', 'wread', 'wpairs'];
-  const steps = [
+  const steps = L.kind === 'phrase' ? [
+    ...set.map(x => ({t: 'pintro', x})),
+    ...shuffle(set).map(x => ({t: 'plisten', x})),
+    ...shuffle(set).map(x => ({t: 'pbuild', x})),
+    ...shuffle(set).map(x => ({t: 'phear', x})),
+  ] : [
     ...set.map(x => ({t: T[0], x})),
     ...listen.map(x => ({t: T[1], x})),
     ...shuffle(set).map(x => ({t: T[2], x})),
+    ...(L.kind === 'word' ? shuffle(set).filter(canBuild).map(x => ({t: 'wbuild', x, model: true})) : []),   // собрать слово по образцу
     {t: T[3], set},
   ];
-  const pool = L.kind === 'abc' ? LETTERS.slice(0, ABC_RANGES[L.i][1]) : L.t.lessons.slice(0, L.i + 1).flat();
+  const pool = L.kind === 'phrase' ? set : L.kind === 'abc' ? LETTERS.slice(0, ABC_RANGES[L.i][1]) : L.t.lessons.slice(0, L.i + 1).flat();
   S = {L, mode: 'lesson', steps, pos: 0, mistakes: 0, pool, missed: new Set()};
   step();
 }
@@ -362,8 +387,9 @@ function startLesson(L){
 function startExam(L){
   const words = !!L.t;
   const items = words ? shuffle(L.set) : shuffle(LETTERS).slice(0, 12);
-  const T = words ? ['wlisten', 'wread', 'whear'] : ['listen', 'missing'];
-  S = {L, mode: 'exam', steps: items.map((x, i) => ({t: T[i % T.length], x})), pos: 0, mistakes: 0, pool: L.set, missed: new Set()};
+  const T = words ? ['wlisten', 'wread', 'whear', 'wbuild'] : ['listen', 'missing'];
+  const kind = (x, i) => { const t = T[i % T.length]; return t === 'wbuild' && !canBuild(x) ? 'whear' : t };
+  S = {L, mode: 'exam', steps: items.map((x, i) => ({t: kind(x, i), x})), pos: 0, mistakes: 0, pool: L.set, missed: new Set()};
   render('lesson', `
     <div class="lbar"><button class="x" id="x">✕</button><div class="prog"><i style="width:0%"></i></div></div>
     <div class="stage"><div class="center">
@@ -386,7 +412,7 @@ function startReview(){
   const known = LETTERS.filter(x => m[revKey(x)]), letters = known.length >= 4 ? known : LETTERS.slice(0, 4);
   const steps = shuffle(keys).map(k => {
     const {x, t} = ITEMS[k], hard = m[k][0] >= 2;
-    return t ? {t: pick(hard ? ['wread', 'whear'] : ['wlisten', 'wread']), x, pool: t.lessons.flat()}
+    return t ? {t: pick(hard ? ['wread', 'whear', ...(canBuild(x) ? ['wbuild'] : [])] : ['wlisten', 'wread']), x, pool: t.lessons.flat()}
              : {t: pick(['listen', 'missing']), x, pool: letters.includes(x) ? letters : [...letters, x]};
   });
   S = {L: {id: 'review', kind: 'review'}, mode: 'review', steps, pos: 0, mistakes: 0, pool: [], missed: new Set(), n: keys.length,
@@ -425,6 +451,7 @@ function wireOptions(x, onRight){
     if (locked || b.classList.contains('no')) return;
     if (b.dataset.k === x.k){
       locked = true; b.classList.add('ok'); ding(); petReact('ok');
+      track(me(), revKey(x), !missed);
       if (S.onAnswer) S.onAnswer(S.cur, !missed);
       onRight();
     } else {
@@ -485,14 +512,14 @@ STEPS.wintro = ({x}) => {
   $('#go').onclick = advance;
   task('wintro', x.en);
 };
-STEPS.wlisten = ({x}) => {
+STEPS.wlisten = STEPS.plisten = ({x, t}) => {
   frame(`
-    ${helper('Послушай и найди картинку')}
+    ${helper(t === 'plisten' ? 'Послушай фразу и найди картинку' : 'Послушай и найди картинку')}
     <div class="center" style="margin-top:10px"><button class="btn big-round" id="snd">🔊</button></div>
     ${optsHTML(x, pic)}`);
   $('#snd').onclick = () => say(x.en);
   wireOptions(x, () => later(advance, 900));
-  task('wlisten', x.en);
+  task(t, x.en);
 };
 STEPS.wread = ({x}) => {
   frame(`
@@ -503,14 +530,64 @@ STEPS.wread = ({x}) => {
   wireOptions(x, () => { later(() => say(x.en), 300); later(advance, 1600) });
   task('wread');
 };
-STEPS.whear = ({x}) => {
+STEPS.whear = STEPS.phear = ({x, t}) => {
   frame(`
-    ${helper('Послушай и выбери слово')}
+    ${helper(t === 'phear' ? 'Послушай и выбери фразу' : 'Послушай и выбери слово')}
     <div class="center" style="margin-top:10px"><button class="btn big-round" id="snd">🔊</button></div>
-    ${optsHTML(x, o => esc(o.en), 'word')}`);
+    ${optsHTML(x, o => esc(o.en), t === 'phear' ? 'word phr' : 'word')}`);
   $('#snd').onclick = () => say(x.en);
   wireOptions(x, () => later(advance, 900));
-  task('whear', x.en);
+  task(t, x.en);
+};
+
+/* ---------- фразы ---------- */
+STEPS.pintro = ({x}) => {
+  frame(`
+    <p class="task">Новая фраза! Послушай и повтори вслух 🗣️</p>
+    <div class="bigem sm" id="em">${pic(x)}</div>
+    <p class="bigword phr" id="bw">${esc(x.en.slice(0, -x.w.length))}<b>${esc(x.w)}</b></p>
+    <p class="ruhint">${x.ru}</p>
+    <div class="row"><button class="btn round ghost" id="snd">🔊</button><button class="btn" id="go">Дальше →</button></div>`);
+  $('#em').onclick = $('#bw').onclick = $('#snd').onclick = () => say(x.en);
+  $('#go').onclick = advance;
+  task('pintro', x.en);
+};
+
+/* ---------- собери слово из букв или фразу из слов ---------- */
+const canBuild = x => { const n = x.en.replace(/[^a-z]/gi, '').length; return n >= 2 && n <= 8 };
+STEPS.wbuild = STEPS.pbuild = st => {
+  const x = st.x, words = st.t === 'pbuild';
+  const parts = words ? x.en.split(' ') : [...x.en];
+  const need = parts.map((s, i) => ({s, i})).filter(o => words || /[a-z]/i.test(o.s));     // пробелы и дефисы стоят на месте
+  let tiles = shuffle(need.map(o => o.s));
+  for (let k = 0; k < 20 && need.length > 1 && tiles.every((s, i) => s === need[i].s); k++) tiles = shuffle(tiles);
+  let pos = 0, missed = false;
+  frame(`
+    <p class="task">${words ? 'Собери фразу' : 'Собери слово'}</p>
+    <div class="bigem sm" id="em">${pic(x)}</div>
+    <p class="ruhint" style="margin-bottom:6px">${x.ru}</p>
+    ${st.model ? `<p class="model">${esc(x.en)}</p>` : ''}
+    <div class="slots ${words ? 'w' : ''}">${parts.map((s, i) => words || /[a-z]/i.test(s)
+      ? `<span class="sl" data-i="${i}"></span>` : `<span class="fx">${s === ' ' ? '&nbsp;' : esc(s)}</span>`).join('')}</div>
+    <div class="tiles ${words ? 'w' : ''}">${tiles.map(s => `<button class="tile" data-s="${esc(s)}">${esc(s)}</button>`).join('')}</div>`);
+  $('#em').onclick = () => say(x.en);
+  $$('.tile').forEach(b => b.onclick = () => {
+    if (b.classList.contains('used') || pos >= need.length) return;
+    const want = need[pos];
+    if (b.dataset.s.toLowerCase() !== want.s.toLowerCase()){
+      b.classList.remove('no'); void b.offsetWidth; b.classList.add('no'); buzz();
+      if (!missed){ missed = true; S.mistakes++; S.missed.add(revKey(x)); petReact('no') }
+      return;
+    }
+    const slot = $(`.sl[data-i="${want.i}"]`);
+    slot.textContent = want.s; slot.classList.add('on'); b.classList.add('used'); pos++;
+    if (pos < need.length){ tone(480 + pos * 45, .12); return }
+    ding(); petReact('ok'); $('.slots').classList.add('ok');
+    track(me(), revKey(x), !missed);
+    if (S.onAnswer) S.onAnswer(S.cur, !missed);
+    later(() => say(x.en), 300); later(advance, 1800);
+  });
+  task(st.t, x.en);
 };
 STEPS.wpairs = ({set}) => pairsGame('Найди пары: картинка и слово',
   set.flatMap(x => [{k: x.en, s: pic(x)}, {k: x.en, s: esc(x.en), txt: true}]), set.length);
@@ -538,18 +615,21 @@ function pairsGame(title, deck, need){
 }
 
 function finish(){
-  const p = me(), before = total(p), L = S.L, mode = S.mode, m = revOf(p).m, tomorrow = dayNo() + 1;
-  let stars = 0, head, sub, big, again;
+  if (S.mode === 'duel'){ const r = {score: S.right, ms: Date.now() - S.t0}, done = S.done; S = null; hush(); return done(r) }
+  const p = me(), before = total(p), L = S.L, mode = S.mode, m = revOf(p).m, tomorrow = dayNo() + 1, had = stickerSet(p);
+  let stars = 0, head, sub, big, again, got = 3;
 
   if (mode === 'review'){
-    const n = S.n;
+    const n = S.n; dayMark(p, 'r');
     head = PRAISE[1].en; sub = `Повторено: ${n} ${plural(n, 'слово', 'слова', 'слов')}`;
     big = '<div class="bigem" style="font-size:clamp(54px,11vw,82px)">🔁✨</div>';
     stars = 3; again = dueItems(p).length ? startReview : null;
   } else {
     stars = mode === 'exam' ? (S.mistakes <= 1 ? 3 : S.mistakes <= 3 ? 2 : 1) : (S.mistakes <= 1 ? 3 : S.mistakes <= 4 ? 2 : 1);
     p.stars[L.id] = Math.max(p.stars[L.id] || 0, stars);
-    if (mode === 'lesson') L.set.forEach(x => { const k = revKey(x); if (!m[k] || S.missed.has(k)) m[k] = [0, tomorrow] });
+    got = stars * (mode === 'exam' ? 3 : 2); dayMark(p, 'l');
+    if (mode === 'lesson' && L.kind === 'phrase'){}                 // фразы в повторение не попадают
+    else if (mode === 'lesson') L.set.forEach(x => { const k = revKey(x); if (!m[k] || S.missed.has(k)) m[k] = [0, tomorrow] });
     else S.missed.forEach(k => { m[k] = [0, tomorrow] });   // в испытании ошибся — слово вернётся в повторение
     head = PRAISE[3 - stars].en; sub = PRAISE[3 - stars].ru;
     big = mode === 'exam'
@@ -557,9 +637,11 @@ function finish(){
       : `<div class="stars">${[1, 2, 3].map(n => `<span class="${n <= stars ? '' : 'off'}">⭐</span>`).join('')}</div>`;
     again = mode === 'exam' ? () => startExam(L) : () => startLesson(L);
   }
-  saveRev(p); touchStreak(p); save();
+  earn(p, got);
+  saveRev(p); saveStat(p); touchStreak(p); save();
   const after = total(p), c = myPet();
   const toy = TOYS.find(x => x.at > before && x.at <= after);
+  const fresh = newStickers(p, had);
   S = null;
   render('finish', `
     <div class="stage" style="margin-top:24px">
@@ -568,7 +650,9 @@ function finish(){
         <h1>${head}</h1>
         <p class="sub" style="margin:0">${sub}</p>
         ${big}
+        <div class="earned">+${got} 🦴</div>
         ${toy ? `<div class="gift">🎁 Новый подарок для ${c.name}: ${toy.icon} ${toy.name}!</div>` : ''}
+        ${fresh.map(s => `<div class="gift">📒 ${s.gold ? 'Наклейка стала золотой' : 'Новая наклейка'}: ${s.icon} ${esc(s.name)}!</div>`).join('')}
         <div class="row">
           ${again ? `<button class="btn ghost" id="again">${mode === 'review' ? 'Ещё повторить' : 'Ещё раз'}</button>` : ''}
           <button class="btn" id="home">Дальше →</button>

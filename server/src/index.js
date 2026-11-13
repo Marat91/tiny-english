@@ -99,10 +99,69 @@ async function joinGroup(env, code, id){
   return { name: g.name };
 }
 
+/* Дуэль: набор вопросов и результаты всех, кто на них ответил */
+const DUEL_RE = /^[0-9a-f]{12}$/, Q_TYPES = ['listen', 'missing', 'wlisten', 'wread', 'whear'];
+async function duelInfo(env, id, uid){
+  const d = await env.DB.prepare('SELECT d.id, d.q, d.created, u.name owner FROM duels d LEFT JOIN users u ON u.tg_id = d.owner WHERE d.id = ?').bind(id).first();
+  if (!d) return null;
+  const sc = (await env.DB.prepare('SELECT tg_id, pid, name, avatar, score, ms FROM duel_scores WHERE id = ? ORDER BY score DESC, ms ASC').bind(id).all()).results;
+  let q = []; try { q = JSON.parse(d.q) } catch (e) {}
+  return {
+    id: d.id, created: d.created, owner: d.owner, q, invite: `https://t.me/${env.BOT_USERNAME}?start=duel_${id}`,
+    scores: sc.map(s => ({ mine: s.tg_id === uid, pid: s.tg_id === uid ? s.pid : null, name: s.name, avatar: s.avatar, score: s.score, ms: s.ms })),
+  };
+}
+async function joinDuel(env, id, uid){
+  const d = await env.DB.prepare('SELECT id FROM duels WHERE id = ?').bind(id).first();
+  if (!d) return null;
+  const n = (await env.DB.prepare('SELECT COUNT(*) n FROM duel_players WHERE id = ?').bind(id).first()).n;
+  if (n >= 20) return { full: true };
+  await env.DB.prepare('INSERT OR IGNORE INTO duel_players (id, tg_id) VALUES (?, ?)').bind(id, uid).run();
+  return {};
+}
+async function duelApi(env, u, body){
+  const id = String(body.id || '');
+  if (body.action === 'create'){
+    const q = (Array.isArray(body.q) ? body.q : []).slice(0, 12)
+      .filter(x => x && typeof x.k === 'string' && /^[LW]:[A-Za-z][A-Za-z '-]{0,22}$/.test(x.k) && Q_TYPES.includes(x.t))
+      .map(x => ({ k: x.k, t: x.t }));
+    if (q.length < 4) return json({ error: 'q' }, 400);
+    const since = new Date(Date.now() - 864e5).toISOString();
+    const made = (await env.DB.prepare('SELECT COUNT(*) n FROM duels WHERE owner = ? AND created > ?').bind(u.id, since).first()).n;
+    if (made >= 30) return json({ error: 'limit' }, 400);
+    const fresh = hex(crypto.getRandomValues(new Uint8Array(6)));
+    await env.DB.batch([
+      env.DB.prepare('INSERT INTO duels (id, owner, created, q) VALUES (?, ?, ?, ?)').bind(fresh, u.id, new Date().toISOString(), JSON.stringify(q)),
+      env.DB.prepare('INSERT INTO duel_players (id, tg_id) VALUES (?, ?)').bind(fresh, u.id),
+    ]);
+    return json({ duel: await duelInfo(env, fresh, u.id) });
+  }
+  if (body.action === 'list'){
+    const ids = (await env.DB.prepare(`SELECT d.id FROM duels d JOIN duel_players p ON p.id = d.id WHERE p.tg_id = ?
+        ORDER BY d.created DESC LIMIT 8`).bind(u.id).all()).results;
+    const duels = [];
+    for (const r of ids) duels.push(await duelInfo(env, r.id, u.id));
+    return json({ duels: duels.filter(Boolean) });
+  }
+  if (body.action === 'score'){
+    if (!DUEL_RE.test(id)) return json({ error: 'id' }, 400);
+    const d = await env.DB.prepare('SELECT q FROM duels WHERE id = ?').bind(id).first();
+    const player = await env.DB.prepare('SELECT 1 x FROM duel_players WHERE id = ? AND tg_id = ?').bind(id, u.id).first();
+    if (!d || !player) return json({ error: 'duel' }, 404);
+    let max = 12; try { max = JSON.parse(d.q).length } catch (e) {}
+    // засчитывается только первая попытка каждого ученика
+    await env.DB.prepare('INSERT OR IGNORE INTO duel_scores (id, tg_id, pid, name, avatar, score, ms) VALUES (?,?,?,?,?,?,?)')
+      .bind(id, u.id, str(body.pid, 24), str(body.name, 20), str(body.avatar, 16), int(body.score, 0, max, 0), int(body.ms, 0, 3600000, 0)).run();
+    return json({ duel: await duelInfo(env, id, u.id) });
+  }
+  return json({ error: 'action' }, 400);
+}
+
 async function api(path, body, env){
   const u = await verify(body.initData, env);
   if (!u) return json({ error: 'auth' }, 401);
   await ensureUser(env, u);
+  if (path === '/api/duel') return duelApi(env, u, body);
 
   if (path === '/api/sync'){
     const list = Array.isArray(body.profiles) ? body.profiles.slice(0, 8) : [];
@@ -174,6 +233,13 @@ async function webhook(req, env){
       else if (r.full) reply = `В группе «${r.name}» уже нет мест. А поиграть можно и так 👇`;
       else reply = `Вы в группе «${r.name}»! 🎉 Её рейтинг — на экране «Рейтинг» в игре. Нажмите «Играть» 👇`;
     }
+    const du = /^duel_([0-9a-f]{12})$/.exec(arg);
+    if (du){
+      const r = await joinDuel(env, du[1], m.from.id);
+      if (!r) reply = 'Этот вызов на дуэль уже не действует. Попросите прислать новый. А поиграть можно и так 👇';
+      else if (r.full) reply = 'В этой дуэли уже слишком много участников. А поиграть можно и так 👇';
+      else reply = 'Вас вызвали на дуэль! ⚔️ Нажмите «Играть», затем «Игры» → «Дуэль» — вызов ждёт внизу экрана 👇';
+    }
   } else if (text.startsWith('/stop')){
     await env.DB.prepare('UPDATE users SET remind_on = 0 WHERE tg_id = ?').bind(m.from.id).run();
     reply = 'Напоминания выключены. Включить обратно можно в игре на экране «Рейтинг».';
@@ -224,6 +290,13 @@ export default {
     }
   },
   async scheduled(event, env, ctx){
+    // дуэли старше 30 дней больше не нужны
+    const old = new Date(event.scheduledTime - 30 * 864e5).toISOString();
+    ctx.waitUntil(env.DB.batch([
+      env.DB.prepare('DELETE FROM duel_scores WHERE id IN (SELECT id FROM duels WHERE created < ?)').bind(old),
+      env.DB.prepare('DELETE FROM duel_players WHERE id IN (SELECT id FROM duels WHERE created < ?)').bind(old),
+      env.DB.prepare('DELETE FROM duels WHERE created < ?').bind(old),
+    ]).catch(e => console.error(e)));
     ctx.waitUntil(remind(env, event.scheduledTime));
   },
 };

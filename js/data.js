@@ -90,6 +90,19 @@ const TOPICS = [
   ]},
 ].map(t => ({...t, lessons: t.lessons.map(set => set.map(w))}));
 
+/* Фразы: короткие предложения из уже знакомых слов. Урок открывается, когда пройдена его тема.
+   Последнее слово фразы должно быть словом из этой темы — от него берётся картинка. */
+const WORDS = {};
+TOPICS.forEach(t => t.lessons.flat().forEach(x => { WORDS[x.en] = x }));
+const PHRASES = [
+  {topic:'colors',  pat:'It is …',      set:[['It is red','Это красный'], ['It is blue','Это синий'], ['It is green','Это зелёный'], ['It is yellow','Это жёлтый']]},
+  {topic:'animals', pat:'I have a …',   set:[['I have a cat','У меня есть кошка'], ['I have a dog','У меня есть собака'], ['I have a bird','У меня есть птица'], ['I have a fish','У меня есть рыбка']]},
+  {topic:'family',  pat:'This is my …', set:[['This is my mom','Это моя мама'], ['This is my dad','Это мой папа'], ['This is my sister','Это моя сестра'], ['This is my brother','Это мой брат']]},
+  {topic:'food',    pat:'I like …',     set:[['I like milk','Я люблю молоко'], ['I like bread','Я люблю хлеб'], ['I like cheese','Я люблю сыр'], ['I like cake','Я люблю торт']]},
+  {topic:'toys',    pat:'I see a …',    set:[['I see a ball','Я вижу мяч'], ['I see a car','Я вижу машину'], ['I see a robot','Я вижу робота'], ['I see a train','Я вижу поезд']]},
+  {topic:'verbs',   pat:'I can …',      set:[['I can run','Я умею бегать'], ['I can swim','Я умею плавать'], ['I can sing','Я умею петь'], ['I can dance','Я умею танцевать']]},
+].map(ph => ({...ph, set: ph.set.map(([en, ru]) => { const wn = en.split(' ').pop(); return {...WORDS[wn], k: en, en, ru, w: wn} })}));
+
 /* Задания, которые произносятся по-русски перед английским словом (один раз за урок на каждый вид задания).
    Ключ — вид задания в игре. После изменения пересоберите озвучку: node tools/build-audio.mjs */
 const HINTS = {
@@ -104,6 +117,15 @@ const HINTS = {
   wpairs:  'Найди пары: картинку и слово.',
   exam:    'Это испытание! Проверим, что ты запомнил. Ошибаться можно.',
   review:  'Давай повторим слова, которые ты уже знаешь.',
+  wbuild:  'Собери слово из букв. Нажимай буквы по порядку.',
+  pintro:  'Новая фраза! Послушай и повтори вслух.',
+  plisten: 'Послушай фразу и найди картинку.',
+  pbuild:  'Собери фразу из слов. Нажимай слова по порядку.',
+  phear:   'Послушай и выбери фразу, которую услышал.',
+  g_b:     'Лопай шарики с тем, что услышишь!',
+  g_y:     'Картинка и слово совпадают? Отвечай: да или нет.',
+  g_m:     'Найди все пары как можно быстрее!',
+  duel:    'Дуэль! Отвечай правильно и быстро.',
 };
 
 /* Похвала в конце урока: 3, 2 и 1 звезда */
@@ -121,4 +143,31 @@ const TOYS = [
   {at:32, name:'корона',          icon:'👑'},
 ];
 
-const AVATARS = ['👧','👦','🧒','👩','👨','👵','👴','🦸'];
+/* Магазин: вещи для комнаты питомца, покупаются за косточки. Названия — слова из уроков (у них уже есть озвучка).
+   pos — где вещь стоит в комнате: [слева %, снизу %, размер]. */
+const SHOP = [
+  {id:'balloon', en:'balloon',    ru:'шарик',   icon:'🎈', price:10, pos:[84,46,1.2]},
+  {id:'book',    en:'book',       ru:'книга',   icon:'📖', price:10, pos:[22,5,.9]},
+  {id:'ball',    en:'ball',       ru:'мяч',     icon:'⚽', price:15, pos:[74,3,.9]},
+  {id:'cake',    en:'cake',       ru:'торт',    icon:'🍰', price:20, pos:[45,0,.9]},
+  {id:'teddy',   en:'teddy bear', ru:'мишка',   icon:'🧸', price:20, pos:[24,22,1.2]},
+  {id:'lamp',    en:'lamp',       ru:'лампа',   icon:'💡', price:25, pos:[46,80,1]},
+  {id:'clock',   en:'clock',      ru:'часы',    icon:'🕰️', price:25, pos:[10,66,1.2]},
+  {id:'car',     en:'car',        ru:'машина',  icon:'🚗', price:30, pos:[6,3,1]},
+  {id:'kite',    en:'kite',       ru:'змей',    icon:'🪁', price:30, pos:[28,70,1.2]},
+  {id:'drum',    en:'drum',       ru:'барабан', icon:'🥁', price:35, pos:[60,2,1]},
+  {id:'sofa',    en:'sofa',       ru:'диван',   icon:'🛋️', price:40, pos:[64,24,2]},
+  {id:'bed',     en:'bed',        ru:'кровать', icon:'🛏️', price:40, pos:[2,22,1.9]},
+  {id:'robot',   en:'robot',      ru:'робот',   icon:'🤖', price:50, pos:[87,10,1.2]},
+  {id:'rainbow', en:'rainbow',    ru:'радуга',  icon:'🌈', price:60, pos:[66,66,1.6]},
+];
+const WALLS = [
+  {id:'',       ru:'обычные',                   price:0,  css:'linear-gradient(#fdf1dc,#f8e3c0)', dot:'#f8e3c0'},
+  {id:'blue',   en:'blue',   ru:'синие',        price:30, css:'linear-gradient(#cfe6ff,#a9d0ff)', dot:'#3b82f6'},
+  {id:'green',  en:'green',  ru:'зелёные',      price:30, css:'linear-gradient(#d9f7e0,#b4ecc3)', dot:'#22c55e'},
+  {id:'yellow', en:'yellow', ru:'жёлтые',       price:30, css:'linear-gradient(#fff6c2,#ffe98a)', dot:'#facc15'},
+  {id:'purple', en:'purple', ru:'фиолетовые',   price:30, css:'linear-gradient(#ead9ff,#d3b6ff)', dot:'#a855f7'},
+];
+const FREEZE_PRICE = 30, FREEZE_MAX = 2;
+
+const AVATARS =['👧','👦','🧒','👩','👨','👵','👴','🦸'];
