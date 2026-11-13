@@ -67,11 +67,43 @@ const photoSrc = u => /^\/photo\/[0-9a-f]{32}$/.test(u || '') ? API_URL + u : /^
 const PHOTO_KEY = 'tiny-photo';
 let myPhoto = (() => { try { return localStorage.getItem(PHOTO_KEY) || '' } catch(e){ return '' } })();   // своё фото, как его отдал сервер
 const ownPhoto = () => photoSrc(myPhoto) || tgPhoto();
+/* Своё фото ученика ('ph'): уменьшенный снимок лежит на устройстве, копия — на сервере (для рейтинга и других устройств) */
+const PIC = 'tiny-pic-', PICS_KEY = 'tiny-pics';
+const localPic = pid => { try { const v = localStorage.getItem(PIC + pid) || ''; return v.startsWith('data:image/jpeg;base64,') ? v : '' } catch(e){ return '' } };
+let myPics = (() => { try { return JSON.parse(localStorage.getItem(PICS_KEY)) || {} } catch(e){ return {} } })();   // {ученик: адрес на сервере}
+const picOf = pid => localPic(pid) || photoSrc(myPics[pid]);
+const imgTag = src => `<img class="avimg" src="${src.replace(/[&<>"']/g, c => '&#' + c.charCodeAt(0) + ';')}" alt="" onerror="this.replaceWith('🙂')">`;
+/* av(ученик) — иконка ученика с этого устройства; av(иконка, фото) — игрок из ответа сервера */
 function av(a, photo){
-  if (a !== 'tg') return String(a || '🙂').replace(/[&<>"']/g, '');
-  /* photo не передан — это ученик с этого устройства, берём своё фото; передан пустым — чужой игрок без фото */
-  const src = photo === undefined ? ownPhoto() : photoSrc(photo);
-  return src ? `<img class="avimg" src="${src.replace(/[&<>"']/g, c => '&#' + c.charCodeAt(0) + ';')}" alt="" onerror="this.replaceWith('🙂')">` : '🙂';
+  const emoji = v => String(v || '🙂').replace(/[&<>"']/g, '');
+  let src;
+  if (a && typeof a === 'object'){
+    if (a.avatar !== 'ph' && a.avatar !== 'tg') return emoji(a.avatar);
+    src = a.avatar === 'ph' ? picOf(a.id) : ownPhoto();
+  } else {
+    if (a !== 'ph' && a !== 'tg') return emoji(a);
+    src = photo === undefined ? (a === 'tg' ? ownPhoto() : '') : photoSrc(photo);
+  }
+  return src ? imgTag(src) : '🙂';
+}
+/* Уменьшает выбранный снимок до квадрата 192×192; done(адрес-картинка) или done('') при ошибке */
+function shrinkPhoto(file, done){
+  const url = URL.createObjectURL(file), im = new Image();
+  im.onload = () => {
+    try {
+      const w = im.naturalWidth, h = im.naturalHeight, side = Math.min(w, h), c = document.createElement('canvas');
+      c.width = c.height = 192;
+      c.getContext('2d').drawImage(im, (w - side) / 2, (h - side) / 2, side, side, 0, 0, 192, 192);
+      done(c.toDataURL('image/jpeg', .82));
+    } catch(e){ done('') }
+    URL.revokeObjectURL(url);
+  };
+  im.onerror = () => { URL.revokeObjectURL(url); done('') };
+  im.src = url;
+}
+function setPic(pid, data){
+  try { localStorage.setItem(PIC + pid, data) } catch(e){}
+  if (typeof call === 'function') call('/api/photo', {pid, img: data.split(',')[1]});
 }
 
 let playAs = null;                                                  // в дуэли на одном устройстве ходит другой ученик

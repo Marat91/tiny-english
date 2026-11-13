@@ -157,7 +157,7 @@ function parents(pid){
   const tile = (v, t) => `<div class="pt"><b>${v}</b><small>${t}</small></div>`;
   render('parents', `
     <div class="lbar"><button class="x" id="x">←</button><h2 style="margin:0;flex:1">Для родителей</h2><span style="width:46px"></span></div>
-    ${db.profiles.length > 1 ? `<div class="tabs">${db.profiles.map(x => `<button class="tab ${x === p ? 'on' : ''}" data-id="${x.id}">${av(x.avatar)} ${esc(x.name)}</button>`).join('')}</div>` : ''}
+    ${db.profiles.length > 1 ? `<div class="tabs">${db.profiles.map(x => `<button class="tab ${x === p ? 'on' : ''}" data-id="${x.id}">${av(x)} ${esc(x.name)}</button>`).join('')}</div>` : ''}
     <div class="ptiles">
       ${tile(`${words}<i> из ${allWords}</i>`, 'слов выучено')}
       ${tile(`${letters}<i> из 26</i>`, 'букв')}

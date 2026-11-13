@@ -90,7 +90,7 @@ function profiles(){
     <h1 class="brand">Tiny English</h1>
     <p class="sub">Кто сегодня занимается?</p>
     <div class="plist">
-      ${db.profiles.map(p => `<button class="pcard" data-id="${p.id}"><span class="pedit" data-edit="${p.id}">✏️</span><span class="av">${av(p.avatar)}</span>${esc(p.name)}<small>⭐ ${total(p)} · 🔥 ${liveStreak(p)}</small></button>`).join('')}
+      ${db.profiles.map(p => `<button class="pcard" data-id="${p.id}"><span class="pedit" data-edit="${p.id}">✏️</span><span class="av">${av(p)}</span>${esc(p.name)}<small>⭐ ${total(p)} · 🔥 ${liveStreak(p)}</small></button>`).join('')}
       ${db.profiles.length < MAX_PROFILES ? '<button class="pcard add" id="add"><span class="av">➕</span>Добавить</button>' : ''}
     </div>`);
   $$('.pcard[data-id]').forEach(b => b.onclick = () => { db.cur = b.dataset.id; save(); home() });
@@ -105,15 +105,18 @@ function petCards(sel){
 
 /* Новый ученик или (если передан edit) изменение имени, иконки и друга */
 function addProfile(edit){
-  const icons = [...(ownPhoto() ? ['tg'] : []), ...AVATARS];
-  let pic0 = edit ? edit.avatar : (ownPhoto() && !db.profiles.length ? 'tg' : AVATARS[0]), ch = edit ? edit.char : CHARACTERS[0].id;
+  /* фото из Telegram предлагаем, только если бот смог его получить (или оно уже выбрано) */
+  const icons = [...(photoSrc(myPhoto) || (edit && edit.avatar === 'tg') ? ['tg'] : []), ...AVATARS];
+  let pic0 = edit ? edit.avatar : AVATARS[0], ch = edit ? edit.char : CHARACTERS[0].id;
+  let shot = edit && edit.avatar === 'ph' ? picOf(edit.id) : '', fresh = false;      // снимок для иконки и выбран ли он сейчас
   const u = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
   const tgName = edit ? edit.name : u && !db.profiles.length ? u.first_name : '';
   render('add', `
     <h1>${edit ? 'Изменить' : 'Новый ученик'}</h1>
-    <p class="sub">Выбери картинку и напиши имя</p>
+    <p class="sub">Выбери картинку или своё фото 📷 и напиши имя</p>
     <div class="center">
-      <div class="avs">${icons.map(a => `<button data-a="${a}" class="${a === pic0 ? 'sel' : ''}">${av(a)}</button>`).join('')}</div>
+      <div class="avs"><button data-a="ph" id="cam" class="${pic0 === 'ph' ? 'sel' : ''}">${shot ? imgTag(shot) : '📷'}</button>${icons.map(a => `<button data-a="${a}" class="${a === pic0 ? 'sel' : ''}">${av(a)}</button>`).join('')}</div>
+      <input type="file" id="file" accept="image/*" hidden>
       <input class="name" id="nm" maxlength="14" placeholder="Имя" value="${esc(tgName || '')}">
       <p class="sub" style="margin:8px 0 0">С кем будешь учиться?</p>
       ${petCards(ch)}
@@ -122,15 +125,24 @@ function addProfile(edit){
         <button class="btn" id="ok">Готово!</button>
       </div>
     </div>`);
-  $$('.avs button').forEach(b => b.onclick = () => { pic0 = b.dataset.a; $$('.avs button').forEach(x => x.classList.toggle('sel', x === b)) });
+  const mark = a => { pic0 = a; $$('.avs button').forEach(x => x.classList.toggle('sel', x.dataset.a === a)) };
+  $$('.avs button').forEach(b => b.onclick = () => b.dataset.a === 'ph' ? $('#file').click() : mark(b.dataset.a));
+  $('#file').onchange = e => {
+    const f = e.target.files && e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    shrinkPhoto(f, data => {
+      if (!data || screen !== 'add') return buzz();
+      shot = data; fresh = true; $('#cam').innerHTML = imgTag(data); mark('ph');
+    });
+  };
   $$('.petcard').forEach(b => b.onclick = () => { ch = b.dataset.c; $$('.petcard').forEach(x => x.classList.toggle('sel', x === b)); say(petById(ch).hello) });
   if ($('#back')) $('#back').onclick = profiles;
   $('#ok').onclick = () => {
     const name = $('#nm').value.trim();
     if (!name) { $('#nm').focus(); return }
-    if (edit){ edit.name = name; edit.avatar = pic0; edit.char = ch; save(); return profiles() }
+    if (edit){ edit.name = name; edit.avatar = pic0; edit.char = ch; if (pic0 === 'ph' && fresh) setPic(edit.id, shot); save(); return profiles() }
     const p = {id: 'p' + Date.now(), name, avatar: pic0, char: ch, stars: {}, streak: 0, last: null};
-    db.profiles.push(p); db.cur = p.id; save(); home();
+    db.profiles.push(p); db.cur = p.id; if (pic0 === 'ph' && fresh) setPic(p.id, shot); save(); home();
   };
 }
 
@@ -180,7 +192,7 @@ function home(){
   const hello = pick([[c.hello, c.helloRu], ['Hello, ' + esc(p.name) + '!', 'Привет! Поиграем?'], ["Let's play!", 'Давай играть!']]);
   render('home', `
     <div class="top">
-      <button class="chip" id="who">${av(p.avatar)} ${esc(p.name)}</button>
+      <button class="chip" id="who">${av(p)} ${esc(p.name)}</button>
       <span class="grow"></span>
       <span class="chip">🦴 ${bones(p)}</span>
       <span class="chip">⭐ ${t}</span>
@@ -247,7 +259,7 @@ const GROUP_IDEAS = ['Семья', 'Друзья', 'Класс'];
 
 function localBoard(){
   return db.profiles
-    .map(p => ({name: p.name, avatar: p.avatar, char: p.char, stars: total(p), streak: liveStreak(p), mine: true}))
+    .map(p => ({id: p.id, name: p.name, avatar: p.avatar, char: p.char, stars: total(p), streak: liveStreak(p), mine: true}))
     .sort((a, b) => b.stars - a.stars || b.streak - a.streak)
     .map((r, i) => ({...r, rank: i + 1}));
 }
@@ -258,7 +270,7 @@ function boardHTML(rows){
     const gap = prev && r.rank > prev + 1 ? '<div class="bgap">⋯</div>' : '';
     prev = r.rank;
     return `${gap}<div class="brow ${r.mine ? 'mine' : ''}">
-      <span class="rk">${medal(r.rank)}</span><span class="bav">${av(r.avatar, r.photo)}</span>
+      <span class="rk">${medal(r.rank)}</span><span class="bav">${r.id ? av(r) : av(r.avatar, r.photo)}</span>
       <span class="bn">${esc(r.name)} <small>${petById(r.char).emoji}</small></span>
       <span class="bs">⭐ ${r.stars}</span><span class="bs">🔥 ${r.streak}</span>
     </div>`}).join('') || '<p class="sub">Пока никого нет</p>'}</div>`;
@@ -671,12 +683,6 @@ function finish(){
 /* ================= Старт ================= */
 preloadPets();
 function start(){
-  /* один раз: если в игре один ученик и у него стоит рисованная иконка — ставим фото из Telegram */
-  if (!db.avm && tgPhoto()){
-    db.avm = 1;
-    if (db.profiles.length === 1 && AVATARS.includes(db.profiles[0].avatar)) db.profiles[0].avatar = 'tg';
-    if (db.profiles.length) save();
-  }
   db.profiles.length ? (me() ? home() : profiles()) : addProfile(); queueSync() }
 if (cloud){
   render('loading', `<div class="center" style="margin-top:60px">${petSVG('dog', 0)}<p class="sub">Загружаю…</p></div>`);

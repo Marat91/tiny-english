@@ -79,7 +79,8 @@ async function refreshPhoto(env, id){
   return { ok: !!img, why };
 }
 async function servePhoto(env, key){
-  const r = await env.DB.prepare('SELECT img, type FROM user_photos WHERE key = ? AND img IS NOT NULL').bind(key).first();
+  const r = await env.DB.prepare('SELECT img, type FROM user_photos WHERE key = ? AND img IS NOT NULL').bind(key).first()
+    || await env.DB.prepare("SELECT img, 'image/jpeg' type FROM profile_photos WHERE key = ?").bind(key).first();   // или фото, загруженное в игре
   if (!r) return new Response('not found', { status: 404 });
   return new Response(r.img instanceof ArrayBuffer ? r.img : new Uint8Array(r.img), { headers: { 'content-type': r.type || 'image/jpeg', 'cache-control': 'public, max-age=21600', ...CORS } });
 }
@@ -95,6 +96,7 @@ async function state(env, id){
       FROM groups g JOIN members m ON m.code = g.code WHERE m.tg_id = ? ORDER BY g.created`).bind(id).all()).results;
   return {
     remind_on: !!me.remind_on, remind_hour: me.remind_hour, public: !!me.public, photo: me.photo || null,
+    pics: Object.fromEntries((await env.DB.prepare('SELECT pid, key FROM profile_photos WHERE tg_id = ?').bind(id).all()).results.map(r => [r.pid, '/photo/' + r.key])),
     groups: groups.map(g => ({ code: g.code, name: g.name, members: g.n, mine: g.owner === id, invite: invite(env, g.code) })),
   };
 }
@@ -103,16 +105,16 @@ async function state(env, id){
 async function board(env, id, scope){
   // фото видно в своих группах и самому себе; в общем рейтинге чужие фото не показываем
   const row = (r, rank) => ({ rank, name: r.name, avatar: r.avatar, char: r.char, stars: r.stars, streak: r.streak, mine: r.tg_id === id,
-    photo: r.avatar === 'tg' && (scope !== 'all' || r.tg_id === id) ? r.photo || null : null });
+    photo: (r.avatar === 'tg' || r.avatar === 'ph') && (scope !== 'all' || r.tg_id === id) ? r.photo || null : null });
   if (scope === 'all'){
-    const top = (await env.DB.prepare(`SELECT p.tg_id, p.pid, p.name, p.avatar, p.char, p.stars, p.streak, CASE WHEN ph.img IS NOT NULL THEN '/photo/' || ph.key ELSE u.photo END photo FROM profiles p
-        JOIN users u ON u.tg_id = p.tg_id LEFT JOIN user_photos ph ON ph.tg_id = p.tg_id WHERE u.public = 1 OR p.tg_id = ?1
+    const top = (await env.DB.prepare(`SELECT p.tg_id, p.pid, p.name, p.avatar, p.char, p.stars, p.streak, CASE WHEN p.avatar = 'ph' THEN '/photo/' || pp.key WHEN ph.img IS NOT NULL THEN '/photo/' || ph.key ELSE u.photo END photo FROM profiles p
+        JOIN users u ON u.tg_id = p.tg_id LEFT JOIN user_photos ph ON ph.tg_id = p.tg_id LEFT JOIN profile_photos pp ON pp.tg_id = p.tg_id AND pp.pid = p.pid WHERE u.public = 1 OR p.tg_id = ?1
         ORDER BY p.stars DESC, p.streak DESC, p.name LIMIT 50`).bind(id).all()).results;
     const rows = top.map((r, i) => row(r, i + 1));
     const total = (await env.DB.prepare('SELECT COUNT(*) n FROM profiles p JOIN users u ON u.tg_id = p.tg_id WHERE u.public = 1 OR p.tg_id = ?1').bind(id).first()).n;
     // свои профили, не попавшие в первые 50, показываем отдельной строкой с их местом
-    const mine = (await env.DB.prepare(`SELECT p.tg_id, p.pid, p.name, p.avatar, p.char, p.stars, p.streak, CASE WHEN ph.img IS NOT NULL THEN '/photo/' || ph.key ELSE u.photo END photo FROM profiles p JOIN users u ON u.tg_id = p.tg_id
-        LEFT JOIN user_photos ph ON ph.tg_id = p.tg_id WHERE p.tg_id = ? ORDER BY p.stars DESC`).bind(id).all()).results;
+    const mine = (await env.DB.prepare(`SELECT p.tg_id, p.pid, p.name, p.avatar, p.char, p.stars, p.streak, CASE WHEN p.avatar = 'ph' THEN '/photo/' || pp.key WHEN ph.img IS NOT NULL THEN '/photo/' || ph.key ELSE u.photo END photo FROM profiles p JOIN users u ON u.tg_id = p.tg_id
+        LEFT JOIN user_photos ph ON ph.tg_id = p.tg_id LEFT JOIN profile_photos pp ON pp.tg_id = p.tg_id AND pp.pid = p.pid WHERE p.tg_id = ? ORDER BY p.stars DESC`).bind(id).all()).results;
     for (const m of mine){
       if (top.some(t => t.tg_id === m.tg_id && t.pid === m.pid)) continue;
       const above = (await env.DB.prepare('SELECT COUNT(*) n FROM profiles p JOIN users u ON u.tg_id = p.tg_id WHERE (u.public = 1 OR p.tg_id = ?1) AND p.stars > ?2').bind(id, m.stars).first()).n;
@@ -123,8 +125,8 @@ async function board(env, id, scope){
   if (!GROUP_RE.test(String(scope))) return null;
   const member = await env.DB.prepare('SELECT 1 x FROM members WHERE code = ? AND tg_id = ?').bind(scope, id).first();
   if (!member) return null;
-  const list = (await env.DB.prepare(`SELECT p.tg_id, p.name, p.avatar, p.char, p.stars, p.streak, CASE WHEN ph.img IS NOT NULL THEN '/photo/' || ph.key ELSE u.photo END photo FROM profiles p
-      JOIN members m ON m.tg_id = p.tg_id JOIN users u ON u.tg_id = p.tg_id LEFT JOIN user_photos ph ON ph.tg_id = p.tg_id WHERE m.code = ? ORDER BY p.stars DESC, p.streak DESC, p.name LIMIT 100`).bind(scope).all()).results;
+  const list = (await env.DB.prepare(`SELECT p.tg_id, p.name, p.avatar, p.char, p.stars, p.streak, CASE WHEN p.avatar = 'ph' THEN '/photo/' || pp.key WHEN ph.img IS NOT NULL THEN '/photo/' || ph.key ELSE u.photo END photo FROM profiles p
+      JOIN members m ON m.tg_id = p.tg_id JOIN users u ON u.tg_id = p.tg_id LEFT JOIN user_photos ph ON ph.tg_id = p.tg_id LEFT JOIN profile_photos pp ON pp.tg_id = p.tg_id AND pp.pid = p.pid WHERE m.code = ? ORDER BY p.stars DESC, p.streak DESC, p.name LIMIT 100`).bind(scope).all()).results;
   return { scope, total: list.length, rows: list.map((r, i) => row(r, i + 1)) };
 }
 
@@ -142,12 +144,12 @@ const DUEL_RE = /^[0-9a-f]{12}$/, Q_TYPES = ['listen', 'missing', 'wlisten', 'wr
 async function duelInfo(env, id, uid){
   const d = await env.DB.prepare('SELECT d.id, d.q, d.created, u.name owner FROM duels d LEFT JOIN users u ON u.tg_id = d.owner WHERE d.id = ?').bind(id).first();
   if (!d) return null;
-  const sc = (await env.DB.prepare(`SELECT s.tg_id, s.pid, s.name, s.avatar, s.score, s.ms, CASE WHEN ph.img IS NOT NULL THEN '/photo/' || ph.key ELSE u.photo END photo FROM duel_scores s LEFT JOIN users u ON u.tg_id = s.tg_id
-      LEFT JOIN user_photos ph ON ph.tg_id = s.tg_id WHERE s.id = ? ORDER BY s.score DESC, s.ms ASC`).bind(id).all()).results;
+  const sc = (await env.DB.prepare(`SELECT s.tg_id, s.pid, s.name, s.avatar, s.score, s.ms, CASE WHEN s.avatar = 'ph' THEN '/photo/' || pp.key WHEN ph.img IS NOT NULL THEN '/photo/' || ph.key ELSE u.photo END photo FROM duel_scores s LEFT JOIN users u ON u.tg_id = s.tg_id
+      LEFT JOIN user_photos ph ON ph.tg_id = s.tg_id LEFT JOIN profile_photos pp ON pp.tg_id = s.tg_id AND pp.pid = s.pid WHERE s.id = ? ORDER BY s.score DESC, s.ms ASC`).bind(id).all()).results;
   let q = []; try { q = JSON.parse(d.q) } catch (e) {}
   return {
     id: d.id, created: d.created, owner: d.owner, q, invite: `https://t.me/${env.BOT_USERNAME}?start=duel_${id}`,
-    scores: sc.map(s => ({ mine: s.tg_id === uid, pid: s.tg_id === uid ? s.pid : null, name: s.name, avatar: s.avatar, photo: s.avatar === 'tg' ? s.photo || null : null, score: s.score, ms: s.ms })),
+    scores: sc.map(s => ({ mine: s.tg_id === uid, pid: s.tg_id === uid ? s.pid : null, name: s.name, avatar: s.avatar, photo: s.avatar === 'tg' || s.avatar === 'ph' ? s.photo || null : null, score: s.score, ms: s.ms })),
   };
 }
 async function joinDuel(env, id, uid){
@@ -215,6 +217,7 @@ async function api(path, body, env){
     stmts.push(env.DB.prepare('UPDATE users SET tz = ?, last_active = COALESCE(?, last_active) WHERE tg_id = ?')
       .bind(int(body.tz, -840, 720, -180), lastActive, u.id));
     await env.DB.batch(stmts);
+    await env.DB.prepare('DELETE FROM profile_photos WHERE tg_id = ?1 AND pid NOT IN (SELECT pid FROM profiles WHERE tg_id = ?1)').bind(u.id).run();   // фото удалённых учеников
     // фото обновляем раз в сутки; если его пока нет (скрыто настройками Telegram) — проверяем чаще, вдруг открыли
     const seen = await env.DB.prepare('SELECT checked, img IS NOT NULL has FROM user_photos WHERE tg_id = ?').bind(u.id).first();
     if (!seen || Date.now() - Date.parse(seen.checked) > (seen.has ? 864e5 : 3e5)) await refreshPhoto(env, u.id);
@@ -222,6 +225,22 @@ async function api(path, body, env){
   else if (path === '/api/board'){
     const b = await board(env, u.id, body.scope);
     return b ? json(b) : json({ error: 'scope' }, 404);
+  }
+  else if (path === '/api/photo'){
+    /* Фото ученика, выбранное в игре: маленький JPEG (игра сама уменьшает снимок). Пустое img — удалить. */
+    const pid = str(body.pid, 24);
+    if (!pid) return json({ error: 'pid' }, 400);
+    if (!body.img) await env.DB.prepare('DELETE FROM profile_photos WHERE tg_id = ? AND pid = ?').bind(u.id, pid).run();
+    else {
+      if (typeof body.img !== 'string' || body.img.length > 80000 || !/^[A-Za-z0-9+/=]+$/.test(body.img)) return json({ error: 'img' }, 400);
+      let bin; try { bin = Uint8Array.from(atob(body.img), c => c.charCodeAt(0)) } catch (e) { return json({ error: 'img' }, 400) }
+      if (bin.length < 100 || bin[0] !== 0xFF || bin[1] !== 0xD8 || bin[2] !== 0xFF) return json({ error: 'img' }, 400);      // только JPEG
+      const have = (await env.DB.prepare('SELECT COUNT(*) n FROM profile_photos WHERE tg_id = ? AND pid <> ?').bind(u.id, pid).first()).n;
+      if (have >= 8) return json({ error: 'limit' }, 400);
+      await env.DB.prepare(`INSERT INTO profile_photos (tg_id, pid, key, img) VALUES (?, ?, ?, ?)
+          ON CONFLICT(tg_id, pid) DO UPDATE SET key = excluded.key, img = excluded.img`)
+        .bind(u.id, pid, hex(crypto.getRandomValues(new Uint8Array(16))), bin.buffer).run();
+    }
   }
   else if (path === '/api/settings'){
     await env.DB.prepare('UPDATE users SET remind_on = ?, remind_hour = ?, public = ? WHERE tg_id = ?')

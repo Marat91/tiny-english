@@ -18,6 +18,7 @@ async function post(path, body){
 async function call(path, body){
   const r = await post(path, body);
   if (r) srv = r;
+  if (r && r.pics){ myPics = r.pics; try { localStorage.setItem(PICS_KEY, JSON.stringify(myPics)) } catch(e){} }
   if (r && 'photo' in r && (r.photo || '') !== myPhoto){               // сервер нашёл (или потерял) настоящее фото
     myPhoto = r.photo || '';
     try { localStorage.setItem(PHOTO_KEY, myPhoto) } catch(e){}
