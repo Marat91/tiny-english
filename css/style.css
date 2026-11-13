@@ -63,6 +63,11 @@ button.chip:active{transform:scale(.95)}
 
 /* персонаж */
 .pet{width:clamp(150px,30vw,230px);animation:breathe 3s ease-in-out infinite;cursor:pointer;overflow:visible}
+.pet.pic{position:relative;display:inline-block;aspect-ratio:1;width:clamp(170px,33vw,250px)}
+.pet.pic img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none;-webkit-user-drag:none}
+.pet .toys{position:absolute;left:50%;bottom:-4px;transform:translateX(-50%);background:#fff;border-radius:999px;padding:3px 10px;
+  font-size:clamp(13px,2.1vw,16px);letter-spacing:2px;white-space:nowrap;box-shadow:var(--sh)}
+.pet.small .toys{display:none}
 .pet.small{width:clamp(76px,13vw,104px)}
 .pet.mid{width:clamp(104px,19vw,144px)}
 .pet.jump{animation:jump .6s ease}

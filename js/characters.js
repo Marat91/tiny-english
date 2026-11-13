@@ -5,8 +5,20 @@ const CHARACTERS = [];
 
 function petById(id){ return CHARACTERS.find(c => c.id === id) || CHARACTERS[0] }
 
+/* Заранее подгружаем позы «радуется» и «грустит», чтобы они менялись без задержки */
+function preloadPets(){
+  CHARACTERS.forEach(c => c.img && Object.values(c.img).forEach(src => { new Image().src = src }));
+}
+
 function petSVG(id, stars, cls){
   const c = petById(id), has = n => stars >= TOYS[n].at;
+  if (c.img){
+    /* Персонаж-картинка: подарки показываем значками под ним */
+    const toys = TOYS.filter(t => stars >= t.at).map(t => t.icon).join('');
+    const pose = /\bjump\b/.test(cls || '') ? c.img.happy : c.img.idle;
+    return `<div class="pet pic ${cls || ''}" role="img" aria-label="${c.name}" data-char="${c.id}">
+      <img src="${pose}" alt="" draggable="false">${toys ? `<span class="toys">${toys}</span>` : ''}</div>`;
+  }
   return `<svg class="pet ${cls || ''}" viewBox="0 -18 240 284" role="img" aria-label="${c.name}">
     ${c.svg}
     ${has(0) ? `<path d="M86 146 q34 20 68 0" stroke="#e5484d" stroke-width="10" fill="none" stroke-linecap="round"/>

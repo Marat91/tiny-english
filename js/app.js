@@ -14,6 +14,12 @@ function petReact(kind){
   const d = $('.pet'); if (!d) return;
   d.classList.remove('jump','sad'); void d.getBoundingClientRect();
   d.classList.add(kind === 'ok' ? 'jump' : 'sad');
+  const c = d.dataset.char && petById(d.dataset.char), im = d.querySelector('img');
+  if (c && c.img && im){                                   // у персонажа-картинки меняем позу
+    im.src = kind === 'ok' ? c.img.happy : c.img.sad;
+    clearTimeout(d._pose);
+    d._pose = setTimeout(() => { if (im.isConnected) im.src = c.img.idle }, 1200);
+  }
 }
 
 /* ---------- список уроков и замки ---------- */
@@ -376,6 +382,7 @@ function finish(){
 }
 
 /* ================= Старт ================= */
+preloadPets();
 function start(){ db.profiles.length ? (me() ? home() : profiles()) : addProfile(); queueSync() }
 if (cloud){
   render('loading', `<div class="center" style="margin-top:60px">${petSVG('dog', 0)}<p class="sub">Загружаю…</p></div>`);
