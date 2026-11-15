@@ -2,7 +2,7 @@
    Что хранится в профиле: b — косточки, own — купленные вещи, wall — обои, fed — день последней кормёжки,
    day — отметки задания дня, fr — заморозки серии, ms — рекорд серии, hi — рекорды игр, gp — сыграно игр. */
 const bones = p => p.b || 0;
-const earn = (p, n) => { p.b = bones(p) + n };
+const earn = (p, n) => { p.b = bones(p) + n; if (n > 0) led(p).i += n };          // led — учёт за неделю, см. pet.js
 function today(p){ const d = dayNo(); if (!p.day || p.day.d !== d) p.day = {d}; return p.day }
 const dayMark = (p, k) => { today(p)[k] = 1 };
 /* За игры — не больше 24 косточек в день, чтобы уроки оставались выгоднее */
@@ -43,73 +43,6 @@ function openChest(){
   $('#go').onclick = home;
 }
 
-/* ================= Комната питомца и магазин ================= */
-function room(note){
-  const p = me(), c = myPet(), own = p.own || [], fed = p.fed === dayNo();
-  const wall = WALLS.find(w => w.id === (p.wall || '')) || WALLS[0], walls = p.walls || [];
-  render('room', `
-    <div class="lbar"><button class="x" id="x">←</button><h2 style="margin:0;flex:1">Дом ${esc(c.name)}</h2><span class="chip" id="bn">🦴 ${bones(p)}</span></div>
-    <div class="room" style="--wall:${wall.css}">
-      ${SHOP.filter(i => own.includes(i.id)).map(i => `<button class="ri" data-id="${i.id}" style="left:${i.pos[0]}%;bottom:${i.pos[1]}%;font-size:${i.pos[2]}em">${i.icon}</button>`).join('')}
-      ${petSVG(p.char, total(p), 'mid')}
-    </div>
-    ${note ? `<div class="note">${note}</div>` : ''}
-    <div class="row" style="margin-top:14px">
-      <button class="btn" id="feed">🦴 ${fed ? 'Угостить ещё (1 🦴)' : 'Покормить'}</button>
-      <button class="btn ghost" id="chg">Сменить друга</button>
-    </div>
-    <p class="sub" style="margin:12px 0 0;font-size:14px">${own.length ? 'Нажимай на вещи в комнате — услышишь, как они называются по-английски' : 'Покупай вещи за косточки 🦴 — они появятся в комнате'}</p>
-
-    <h3 class="sec">🛍️ Магазин</h3>
-    <div class="shop">
-      ${SHOP.map(i => { const has = own.includes(i.id); return `<button class="si ${has ? 'own' : bones(p) < i.price ? 'cant' : ''}" data-id="${i.id}">
-        <i>${i.icon}</i><b>${esc(i.en)}</b><small>${i.ru}</small><span class="pr">${has ? '✓ есть' : '🦴 ' + i.price}</span></button>` }).join('')}
-      <button class="si ${(p.fr || 0) >= FREEZE_MAX ? 'own' : bones(p) < FREEZE_PRICE ? 'cant' : ''}" data-id="freeze">
-        <i>❄️</i><b>Заморозка</b><small>спасает серию 🔥, если пропустить день</small><span class="pr">${(p.fr || 0) >= FREEZE_MAX ? `✓ есть ${p.fr}` : `🦴 ${FREEZE_PRICE}${p.fr ? ' · есть ' + p.fr : ''}`}</span></button>
-    </div>
-    <h3 class="sec">🎨 Обои</h3>
-    <div class="shop walls">
-      ${WALLS.map(w => { const has = !w.price || walls.includes(w.id), on = wall === w; return `<button class="si ${on ? 'on' : has ? 'own' : bones(p) < w.price ? 'cant' : ''}" data-w="${w.id}">
-        <i><span class="sw" style="background:${w.dot}"></span></i><b>${esc(w.en || 'home')}</b><small>${w.ru}</small><span class="pr">${on ? '✓ выбраны' : has ? 'поставить' : '🦴 ' + w.price}</span></button>` }).join('')}
-    </div>`);
-  $('#x').onclick = () => { hush(); home() };
-  $('#chg').onclick = choosePet;
-  $('.pet').onclick = () => { petReact('ok'); say(c.hello) };
-  $$('.ri').forEach(b => b.onclick = () => { b.classList.remove('hop'); void b.offsetWidth; b.classList.add('hop'); say(SHOP.find(i => i.id === b.dataset.id).en) });
-  const poor = () => { buzz(); room('Не хватает косточек 🦴 — их дают за уроки, повторение и игры') };
-  $('#feed').onclick = () => {
-    const first = p.fed !== dayNo();
-    if (!first && bones(p) < 1) return poor();
-    if (!first) earn(p, -1);
-    p.fed = dayNo(); dayMark(p, 'f'); save();
-    $('#bn').textContent = '🦴 ' + bones(p);
-    $('#feed').textContent = '🦴 Угостить ещё (1 🦴)';
-    petReact('ok'); ding(); say('thank you');
-    const h = document.createElement('span'); h.className = 'yum'; h.textContent = '🦴❤️'; $('.room').appendChild(h);
-    setTimeout(() => h.remove(), 1200);
-  };
-  $$('.si[data-id]').forEach(b => b.onclick = () => {
-    const id = b.dataset.id;
-    if (id === 'freeze'){
-      if ((p.fr || 0) >= FREEZE_MAX) return;
-      if (bones(p) < FREEZE_PRICE) return poor();
-      earn(p, -FREEZE_PRICE); p.fr = (p.fr || 0) + 1; save(); ding(); return room();
-    }
-    const i = SHOP.find(x => x.id === id);
-    if (own.includes(id)) return say(i.en);
-    if (bones(p) < i.price) return poor();
-    earn(p, -i.price); p.own = [...own, id]; save(); fanfare(); room(); say(i.en);
-  });
-  $$('.si[data-w]').forEach(b => b.onclick = () => {
-    const w = WALLS.find(x => x.id === b.dataset.w);
-    if (w.price && !walls.includes(w.id)){
-      if (bones(p) < w.price) return poor();
-      earn(p, -w.price); p.walls = [...walls, w.id]; ding();
-    }
-    p.wall = w.id; save(); room(); if (w.en) say(w.en);
-  });
-}
-
 /* ================= Альбом наклеек ================= */
 function stickers(p){
   const learned = Object.keys(revOf(p).m).filter(k => k[0] === 'W' && ITEMS[k]).length;
@@ -122,6 +55,8 @@ function stickers(p){
     ...[[3, '🔥'], [7, '☄️'], [14, '🌟'], [30, '🏅']].map(([n, icon]) => ({id: 's' + n, icon, name: n + ' ' + plural(n, 'день', 'дня', 'дней') + ' подряд', have: ms >= n, how: `Занимайся ${n} ${plural(n, 'день', 'дня', 'дней')} подряд`})),
     {id: 'gp', icon: '🎮', name: 'Игрок', have: (p.gp || 0) >= 10, how: 'Сыграй в игры 10 раз'},
     {id: 'shop', icon: '🛋️', name: 'Уютный дом', have: (p.own || []).length >= 5, how: 'Купи 5 вещей в комнату'},
+    {id: 'grow', icon: '🐕', name: 'Вырастил друга', have: stageNo(p) >= 2, how: 'Вырасти питомца до взрослого'},
+    {id: 'kind', icon: '🎁', name: 'Щедрость', have: (led(p).g || 0) + ((p.lw || {}).g || 0) > 0 || !!p.kind, how: 'Подари что-нибудь другу или внеси в общую цель'},
   ];
 }
 const stickerSet = p => new Set(stickers(p).flatMap(s => [s.have ? s.id : '', s.have && s.gold ? s.id + '*' : '']));
@@ -174,6 +109,8 @@ function parents(pid){
     ${hard.length ? `<div class="board">${hard.map(([k, n]) => `<div class="brow"><span class="bn">${label(k)}</span><span class="bs">ошибок: ${n}</span></div>`).join('')}</div>
         <p class="sub" style="margin:10px 0 0;font-size:14px">Эти слова игра сама чаще показывает в «Повторении». Слово уходит из списка, когда на него начинают отвечать верно.</p>`
       : `<p class="sub">${s.a ? 'Трудных слов сейчас нет 👍' : 'Статистика копится с этой версии игры — данные появятся после первых занятий.'}</p>`}
+    <h3 class="sec">🦴 Косточки: заработано и потрачено</h3>
+    ${reportHTML(p)}
     <h3 class="sec">📚 Темы</h3>
     <div class="board">
       ${[{title: 'Алфавит', icon: '🔤', ids: ABC.map((_, i) => 'abc:' + i), x: 'abc:x'},

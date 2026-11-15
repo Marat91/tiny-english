@@ -92,12 +92,14 @@ const invite = (env, code) => `https://t.me/${env.BOT_USERNAME}?start=grp_${code
 async function state(env, id){
   const me = await env.DB.prepare(`SELECT u.remind_on, u.remind_hour, u.public, CASE WHEN ph.img IS NOT NULL THEN '/photo/' || ph.key ELSE u.photo END photo
       FROM users u LEFT JOIN user_photos ph ON ph.tg_id = u.tg_id WHERE u.tg_id = ?`).bind(id).first();
-  const groups = (await env.DB.prepare(`SELECT g.code, g.name, g.owner, (SELECT COUNT(*) FROM members x WHERE x.code = g.code) n
+  const gifts = (await env.DB.prepare('SELECT id, to_pid pid, from_name, kind, val, card FROM gifts WHERE to_tg = ? AND taken = 0 ORDER BY id LIMIT 20').bind(id).all()).results;
+  const groups = (await env.DB.prepare(`SELECT g.code, g.name, g.owner, (SELECT COUNT(*) FROM members x WHERE x.code = g.code) n, (SELECT total FROM funds f WHERE f.code = g.code) fund
       FROM groups g JOIN members m ON m.code = g.code WHERE m.tg_id = ? ORDER BY g.created`).bind(id).all()).results;
   return {
     remind_on: !!me.remind_on, remind_hour: me.remind_hour, public: !!me.public, photo: me.photo || null,
     pics: Object.fromEntries((await env.DB.prepare('SELECT pid, key FROM profile_photos WHERE tg_id = ?').bind(id).all()).results.map(r => [r.pid, '/photo/' + r.key])),
-    groups: groups.map(g => ({ code: g.code, name: g.name, members: g.n, mine: g.owner === id, invite: invite(env, g.code) })),
+    gifts: gifts.map(g => ({ id: g.id, pid: g.pid, from: g.from_name, kind: g.kind, val: g.val, card: g.card })),
+    groups: groups.map(g => ({ code: g.code, name: g.name, members: g.n, mine: g.owner === id, fund: g.fund || 0, invite: invite(env, g.code) })),
   };
 }
 
@@ -125,9 +127,15 @@ async function board(env, id, scope){
   if (!GROUP_RE.test(String(scope))) return null;
   const member = await env.DB.prepare('SELECT 1 x FROM members WHERE code = ? AND tg_id = ?').bind(scope, id).first();
   if (!member) return null;
-  const list = (await env.DB.prepare(`SELECT p.tg_id, p.name, p.avatar, p.char, p.stars, p.streak, CASE WHEN p.avatar = 'ph' THEN '/photo/' || pp.key WHEN ph.img IS NOT NULL THEN '/photo/' || ph.key ELSE u.photo END photo FROM profiles p
+  const list = (await env.DB.prepare(`SELECT p.tg_id, p.pid, p.name, p.avatar, p.char, p.stars, p.streak, CASE WHEN p.avatar = 'ph' THEN '/photo/' || pp.key WHEN ph.img IS NOT NULL THEN '/photo/' || ph.key ELSE u.photo END photo FROM profiles p
       JOIN members m ON m.tg_id = p.tg_id JOIN users u ON u.tg_id = p.tg_id LEFT JOIN user_photos ph ON ph.tg_id = p.tg_id LEFT JOIN profile_photos pp ON pp.tg_id = p.tg_id AND pp.pid = p.pid WHERE m.code = ? ORDER BY p.stars DESC, p.streak DESC, p.name LIMIT 100`).bind(scope).all()).results;
-  return { scope, total: list.length, rows: list.map((r, i) => row(r, i + 1)) };
+  const rows = [];
+  for (let i = 0; i < list.length; i++) rows.push({ ...row(list[i], i + 1), ref: await refOf(env, list[i].tg_id, list[i].pid) });
+  const since = new Date(Date.now() - 3 * 864e5).toISOString();
+  const asks = (await env.DB.prepare('SELECT tg_id, pid, name, n, item FROM asks WHERE code = ? AND created > ? ORDER BY created DESC LIMIT 10').bind(scope, since).all()).results;
+  const askRows = [];
+  for (const a of asks) askRows.push({ name: a.name, n: a.n, item: a.item, mine: a.tg_id === id, ref: await refOf(env, a.tg_id, a.pid) });
+  return { scope, total: list.length, rows, fund: await fundInfo(env, scope, id), asks: askRows };
 }
 
 async function joinGroup(env, code, id){
@@ -198,11 +206,99 @@ async function duelApi(env, u, body){
   return json({ error: 'action' }, 400);
 }
 
+/* ===== Подарки, гости, просьбы и общая цель группы =====
+   Участника группы игра называет не номером Telegram, а коротким «ref» — отпечатком, который понимает только сервер. */
+const refOf = async (env, tg, pid) => hex(await hmac(env.BOT_TOKEN, 'ref:' + tg + ':' + pid)).slice(0, 16);
+const ITEM_RE = /^[a-z]{2,12}$/;
+const isMember = async (env, code, id) => GROUP_RE.test(String(code)) && !!(await env.DB.prepare('SELECT 1 x FROM members WHERE code = ? AND tg_id = ?').bind(code, id).first());
+/* Комната ученика, как её прислала игра: только короткие названия вещей и числа */
+function roomJson(r){
+  if (!r || typeof r !== 'object') return null;
+  const o = (Array.isArray(r.o) ? r.o : []).filter(x => typeof x === 'string' && ITEM_RE.test(x)).slice(0, 40);
+  const s = (Array.isArray(r.s) ? r.s : []).slice(0, 3).map(v => int(v, 0, 100, 50));
+  while (s.length < 3) s.push(50);
+  return JSON.stringify({ o, w: typeof r.w === 'string' && /^[a-z]{0,10}$/.test(r.w) ? r.w : '', s, st: int(r.st, 0, 3, 0) });
+}
+async function findTarget(env, code, ref){
+  if (typeof ref !== 'string' || !/^[0-9a-f]{16}$/.test(ref)) return null;
+  const list = (await env.DB.prepare(`SELECT p.tg_id, p.pid, p.name, p.char, p.stars, p.room FROM profiles p
+      JOIN members m ON m.tg_id = p.tg_id WHERE m.code = ? LIMIT 400`).bind(code).all()).results;
+  for (const r of list) if (await refOf(env, r.tg_id, r.pid) === ref) return r;
+  return null;
+}
+async function fundInfo(env, code, id){
+  const f = await env.DB.prepare('SELECT total FROM funds WHERE code = ?').bind(code).first();
+  const parts = (await env.DB.prepare('SELECT tg_id, name, n FROM fund_parts WHERE code = ? ORDER BY n DESC LIMIT 8').bind(code).all()).results;
+  return { total: f ? f.total : 0, parts: parts.map(p => ({ name: p.name, n: p.n, mine: p.tg_id === id })) };
+}
+const dayUTC = () => new Date().toISOString().slice(0, 10);
+
+async function socialApi(env, u, path, body){
+  if (path === '/api/gift' && body.action === 'take'){
+    await env.DB.prepare('UPDATE gifts SET taken = 1 WHERE id = ? AND to_tg = ?').bind(int(body.id, 0, 1e12, 0), u.id).run();
+    return json({ ok: true });
+  }
+  const code = String(body.code || '');
+  if (!await isMember(env, code, u.id)) return json({ error: 'group' }, 404);
+
+  if (path === '/api/ask'){
+    const item = ITEM_RE.test(String(body.item || '')) ? body.item : '';
+    await env.DB.prepare(`INSERT INTO asks (code, tg_id, pid, name, n, item, created) VALUES (?,?,?,?,?,?,?)
+        ON CONFLICT(code, tg_id, pid) DO UPDATE SET name = excluded.name, n = excluded.n, item = excluded.item, created = excluded.created`)
+      .bind(code, u.id, str(body.pid, 24), str(body.name, 20), int(body.n, 1, 50, 10), item, new Date().toISOString()).run();
+    return json({ ok: true });
+  }
+  if (path === '/api/fund'){
+    const n = int(body.n, 1, 50, 0), pid = str(body.pid, 24);
+    if (!n || !pid) return json({ error: 'n' }, 400);
+    await env.DB.batch([
+      env.DB.prepare('INSERT INTO funds (code, total) VALUES (?, ?) ON CONFLICT(code) DO UPDATE SET total = total + excluded.total').bind(code, n),
+      env.DB.prepare(`INSERT INTO fund_parts (code, tg_id, pid, name, n) VALUES (?,?,?,?,?)
+          ON CONFLICT(code, tg_id, pid) DO UPDATE SET n = n + excluded.n, name = excluded.name`).bind(code, u.id, pid, str(body.name, 20), n),
+    ]);
+    return json({ fund: await fundInfo(env, code, u.id) });
+  }
+
+  const t = await findTarget(env, code, body.ref);
+  if (!t) return json({ error: 'who' }, 404);
+  if (path === '/api/visit'){
+    let room = null; try { room = JSON.parse(t.room) } catch (e) {}
+    const treated = !!(await env.DB.prepare('SELECT 1 x FROM treats WHERE from_tg = ? AND to_tg = ? AND to_pid = ? AND day = ?').bind(u.id, t.tg_id, t.pid, dayUTC()).first());
+    const f = await env.DB.prepare('SELECT total FROM funds WHERE code = ?').bind(code).first();
+    return json({ name: t.name, char: t.char, stars: t.stars, room: room || { o: [], w: '', s: [50, 50, 50], st: 0 }, treated, fund: f ? f.total : 0 });
+  }
+  if (t.tg_id === u.id) return json({ ok: false, why: 'self' });
+  const from = str(body.from, 20) || str(u.first_name, 20);
+  if (path === '/api/treat'){
+    const r = await env.DB.prepare('INSERT OR IGNORE INTO treats (from_tg, to_tg, to_pid, day) VALUES (?,?,?,?)').bind(u.id, t.tg_id, t.pid, dayUTC()).run();
+    if (!r.meta || !r.meta.changes) return json({ ok: false, why: 'today' });
+    await env.DB.prepare("INSERT INTO gifts (to_tg, to_pid, from_tg, from_name, kind, val, card, created) VALUES (?,?,?,?,'t','',0,?)")
+      .bind(t.tg_id, t.pid, u.id, from, new Date().toISOString()).run();
+    return json({ ok: true });
+  }
+  if (path === '/api/gift'){
+    const kind = body.kind === 'i' ? 'i' : 'b';
+    const val = kind === 'b' ? String(int(body.val, 1, 20, 5)) : ITEM_RE.test(String(body.val || '')) ? body.val : null;
+    if (val === null) return json({ error: 'val' }, 400);
+    const sent = (await env.DB.prepare("SELECT COUNT(*) n FROM gifts WHERE from_tg = ? AND kind <> 't' AND created > ?").bind(u.id, dayUTC()).first()).n;
+    if (sent >= 5) return json({ ok: false, why: 'limit' });                    // не больше пяти подарков в день
+    await env.DB.batch([
+      env.DB.prepare('INSERT INTO gifts (to_tg, to_pid, from_tg, from_name, kind, val, card, created) VALUES (?,?,?,?,?,?,?,?)')
+        .bind(t.tg_id, t.pid, u.id, from, kind, val, int(body.card, 0, 9, 0), new Date().toISOString()),
+      env.DB.prepare('DELETE FROM asks WHERE tg_id = ? AND pid = ?').bind(t.tg_id, t.pid),               // просьба выполнена
+    ]);
+    try { await tgApi(env, 'sendMessage', { chat_id: t.tg_id, text: `🎁 ${from} прислал(а) подарок для ${t.name} в Tiny English! Откройте игру, чтобы посмотреть 👇`, reply_markup: playButton(env) }) } catch (e) {}
+    return json({ ok: true });
+  }
+  return json({ error: 'not found' }, 404);
+}
+
 async function api(path, body, env){
   const u = await verify(body.initData, env);
   if (!u) return json({ error: 'auth' }, 401);
   await ensureUser(env, u);
   if (path === '/api/duel') return duelApi(env, u, body);
+  if (['/api/gift', '/api/visit', '/api/treat', '/api/ask', '/api/fund'].includes(path)) return socialApi(env, u, path, body);
 
   if (path === '/api/sync'){
     const list = Array.isArray(body.profiles) ? body.profiles.slice(0, 8) : [];
@@ -211,8 +307,8 @@ async function api(path, body, env){
     for (const p of list){
       const last = isDay(p.last) ? p.last : null;
       if (last && (!lastActive || last > lastActive)) lastActive = last;
-      stmts.push(env.DB.prepare('INSERT OR REPLACE INTO profiles (tg_id, pid, name, avatar, char, stars, streak, last) VALUES (?,?,?,?,?,?,?,?)')
-        .bind(u.id, str(p.id, 24), str(p.name, 20), str(p.avatar, 16), str(p.char, 12), int(p.stars, 0, 999, 0), int(p.streak, 0, 9999, 0), last));
+      stmts.push(env.DB.prepare('INSERT OR REPLACE INTO profiles (tg_id, pid, name, avatar, char, stars, streak, last, room) VALUES (?,?,?,?,?,?,?,?,?)')
+        .bind(u.id, str(p.id, 24), str(p.name, 20), str(p.avatar, 16), str(p.char, 12), int(p.stars, 0, 999, 0), int(p.streak, 0, 9999, 0), last, roomJson(p.room)));
     }
     stmts.push(env.DB.prepare('UPDATE users SET tz = ?, last_active = COALESCE(?, last_active) WHERE tg_id = ?')
       .bind(int(body.tz, -840, 720, -180), lastActive, u.id));
@@ -263,7 +359,7 @@ async function api(path, body, env){
     if (body.action === 'leave'){
       await env.DB.prepare('DELETE FROM members WHERE code = ? AND tg_id = ?').bind(code, u.id).run();
       const left = (await env.DB.prepare('SELECT COUNT(*) n FROM members WHERE code = ?').bind(code).first()).n;
-      if (!left) await env.DB.prepare('DELETE FROM groups WHERE code = ?').bind(code).run();   // пустая группа не нужна
+      if (!left) await env.DB.batch(['groups', 'funds', 'fund_parts', 'asks'].map(t => env.DB.prepare(`DELETE FROM ${t} WHERE code = ?`).bind(code)));   // пустая группа не нужна
     } else if (body.action === 'rename'){
       if (!name) return json({ error: 'name' }, 400);
       await env.DB.prepare('UPDATE groups SET name = ? WHERE code = ? AND owner = ?').bind(name, code, u.id).run();
@@ -366,6 +462,13 @@ export default {
       env.DB.prepare('DELETE FROM duel_scores WHERE id IN (SELECT id FROM duels WHERE created < ?)').bind(old),
       env.DB.prepare('DELETE FROM duel_players WHERE id IN (SELECT id FROM duels WHERE created < ?)').bind(old),
       env.DB.prepare('DELETE FROM duels WHERE created < ?').bind(old),
+    ]).catch(e => console.error(e)));
+    // старые подарки, просьбы и отметки об угощениях
+    const d3 = new Date(event.scheduledTime - 3 * 864e5).toISOString();
+    ctx.waitUntil(env.DB.batch([
+      env.DB.prepare('DELETE FROM gifts WHERE created < ?').bind(old),
+      env.DB.prepare('DELETE FROM asks WHERE created < ?').bind(d3),
+      env.DB.prepare('DELETE FROM treats WHERE day < ?').bind(d3.slice(0, 10)),
     ]).catch(e => console.error(e)));
     ctx.waitUntil(remind(env, event.scheduledTime));
   },

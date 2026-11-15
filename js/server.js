@@ -17,7 +17,9 @@ async function post(path, body){
 /* Запрос, который возвращает настройки и список групп — запоминаем их в srv */
 async function call(path, body){
   const r = await post(path, body);
+  const hadGifts = srv && srv.gifts ? srv.gifts.length : 0;
   if (r) srv = r;
+  if (r && r.gifts && r.gifts.length > hadGifts && screen === 'home') home();          // пришёл подарок — показываем сразу
   if (r && r.pics){ myPics = r.pics; try { localStorage.setItem(PICS_KEY, JSON.stringify(myPics)) } catch(e){} }
   if (r && 'photo' in r && (r.photo || '') !== myPhoto){               // сервер нашёл (или потерял) настоящее фото
     myPhoto = r.photo || '';
@@ -29,7 +31,7 @@ async function call(path, body){
 
 const syncServer = () => call('/api/sync', {
   tz: new Date().getTimezoneOffset(),
-  profiles: db.profiles.map(p => ({id: p.id, name: p.name, avatar: p.avatar, char: p.char, stars: total(p), streak: liveStreak(p), last: p.last})),
+  profiles: db.profiles.map(p => ({id: p.id, name: p.name, avatar: p.avatar, char: p.char, stars: total(p), streak: liveStreak(p), last: p.last, room: roomData(p)})),
 });
 
 let syncTimer = 0;

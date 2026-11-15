@@ -118,6 +118,7 @@ const HINTS = {
   exam:    'Это испытание! Проверим, что ты запомнил. Ошибаться можно.',
   review:  'Давай повторим слова, которые ты уже знаешь.',
   wbuild:  'Собери слово из букв. Нажимай буквы по порядку.',
+  walk:    'Идём гулять! Ответь на вопросы по дороге.',
   pintro:  'Новая фраза! Послушай и повтори вслух.',
   plisten: 'Послушай фразу и найди картинку.',
   pbuild:  'Собери фразу из слов. Нажимай слова по порядку.',
@@ -143,24 +144,85 @@ const TOYS = [
   {at:32, name:'корона',          icon:'👑'},
 ];
 
-/* Магазин: вещи для комнаты питомца, покупаются за косточки. Названия — слова из уроков (у них уже есть озвучка).
-   pos — где вещь стоит в комнате: [слева %, снизу %, размер]. */
+/* Магазин. Вещи покупаются за косточки. type:
+     need — нужное: без вещи нельзя ухаживать за питомцем;
+     use  — полезное: приносит выгоду со временем;
+     fun  — красивое: только для радости.
+   pos — место в комнате [слева %, снизу %, размер]; yard — вещь стоит во дворе; rare — продаётся только на ярмарке по выходным.
+   Названия — английские слова (озвучка: уроки или EXTRA ниже). */
 const SHOP = [
-  {id:'balloon', en:'balloon',    ru:'шарик',   icon:'🎈', price:10, pos:[84,46,1.2]},
-  {id:'book',    en:'book',       ru:'книга',   icon:'📖', price:10, pos:[22,5,.9]},
-  {id:'ball',    en:'ball',       ru:'мяч',     icon:'⚽', price:15, pos:[74,3,.9]},
-  {id:'cake',    en:'cake',       ru:'торт',    icon:'🍰', price:20, pos:[45,0,.9]},
-  {id:'teddy',   en:'teddy bear', ru:'мишка',   icon:'🧸', price:20, pos:[24,22,1.2]},
-  {id:'lamp',    en:'lamp',       ru:'лампа',   icon:'💡', price:25, pos:[46,80,1]},
-  {id:'clock',   en:'clock',      ru:'часы',    icon:'🕰️', price:25, pos:[10,66,1.2]},
-  {id:'car',     en:'car',        ru:'машина',  icon:'🚗', price:30, pos:[6,3,1]},
-  {id:'kite',    en:'kite',       ru:'змей',    icon:'🪁', price:30, pos:[28,70,1.2]},
-  {id:'drum',    en:'drum',       ru:'барабан', icon:'🥁', price:35, pos:[60,2,1]},
-  {id:'sofa',    en:'sofa',       ru:'диван',   icon:'🛋️', price:40, pos:[64,24,2]},
-  {id:'bed',     en:'bed',        ru:'кровать', icon:'🛏️', price:40, pos:[2,22,1.9]},
-  {id:'robot',   en:'robot',      ru:'робот',   icon:'🤖', price:50, pos:[87,10,1.2]},
-  {id:'rainbow', en:'rainbow',    ru:'радуга',  icon:'🌈', price:60, pos:[66,66,1.6]},
+  {id:'bowl',    type:'need', en:'bowl',       ru:'миска',    icon:'🥣', price:0,   pos:[33,1,.8],   why:'чтобы кормить'},
+  {id:'leash',   type:'need', en:'leash',      ru:'поводок',  icon:'🦮', price:15,                   why:'чтобы гулять'},
+  {id:'bed',     type:'need', en:'bed',        ru:'кроватка', icon:'🛏️', price:40,  pos:[2,22,1.9],  why:'чтобы высыпаться'},
+  {id:'pig',     type:'use',  en:'pig',        ru:'копилка',  icon:'🐷', price:25,  pos:[92,27,.9],  why:'копит косточки с прибавкой'},
+  {id:'tree',    type:'use',  en:'tree',       ru:'дерево',   icon:'🌳', price:60,  yard:true,       why:'+2 🦴 в день, когда занимаешься', day:2},
+  {id:'shelf',   type:'use',  en:'books',      ru:'полка с книгами', icon:'📚', price:80, pos:[86,68,1.1], why:'+1 🦴 за каждый урок', lesson:1},
+  {id:'shop',    type:'use',  en:'shop',       ru:'лавка',    icon:'🏪', price:150, yard:true,       why:'+5 🦴 в день, когда занимаешься', day:5},
+  {id:'balloon', type:'fun',  en:'balloon',    ru:'шарик',    icon:'🎈', price:10,  pos:[88,48,1.2]},
+  {id:'book',    type:'fun',  en:'book',       ru:'книга',    icon:'📖', price:10,  pos:[20,5,.9]},
+  {id:'ball',    type:'fun',  en:'ball',       ru:'мяч',      icon:'⚽', price:15,  pos:[76,3,.9]},
+  {id:'cake',    type:'fun',  en:'cake',       ru:'торт',     icon:'🍰', price:20,  pos:[50,0,.9]},
+  {id:'teddy',   type:'fun',  en:'teddy bear', ru:'мишка',    icon:'🧸', price:20,  pos:[24,22,1.2]},
+  {id:'lamp',    type:'fun',  en:'lamp',       ru:'лампа',    icon:'💡', price:25,  pos:[46,80,1]},
+  {id:'clock',   type:'fun',  en:'clock',      ru:'часы',     icon:'🕰️', price:25,  pos:[5,66,1.2]},
+  {id:'car',     type:'fun',  en:'car',        ru:'машина',   icon:'🚗', price:30,  pos:[4,3,1]},
+  {id:'kite',    type:'fun',  en:'kite',       ru:'змей',     icon:'🪁', price:30,  pos:[20,70,1.2]},
+  {id:'drum',    type:'fun',  en:'drum',       ru:'барабан',  icon:'🥁', price:35,  pos:[62,2,1]},
+  {id:'sofa',    type:'fun',  en:'sofa',       ru:'диван',    icon:'🛋️', price:40,  pos:[64,24,2]},
+  {id:'robot',   type:'fun',  en:'robot',      ru:'робот',    icon:'🤖', price:50,  pos:[88,8,1.2]},
+  {id:'rainbow', type:'fun',  en:'rainbow',    ru:'радуга',   icon:'🌈', price:60,  pos:[60,66,1.6]},
+  {id:'star',    type:'fun',  en:'star',       ru:'звезда',   icon:'⭐', price:50,  pos:[33,84,.8],  rare:true},
+  {id:'guitar',  type:'fun',  en:'guitar',     ru:'гитара',   icon:'🎸', price:60,  pos:[14,44,1.2], rare:true},
+  {id:'tent',    type:'fun',  en:'tent',       ru:'палатка',  icon:'⛺', price:60,  yard:true,       rare:true},
+  {id:'rocket',  type:'fun',  en:'rocket',     ru:'ракета',   icon:'🚀', price:70,  yard:true,       rare:true},
+  {id:'boat',    type:'fun',  en:'boat',       ru:'лодка',    icon:'⛵', price:70,  yard:true,       rare:true},
+  {id:'bike',    type:'fun',  en:'bike',       ru:'велосипед',icon:'🚲', price:80,  yard:true,       rare:true},
+  {id:'fountain',type:'fun',  en:'fountain',   ru:'фонтан',   icon:'⛲', price:100, yard:true,       rare:true},
+  {id:'castle',  type:'fun',  en:'castle',     ru:'замок',    icon:'🏰', price:120, yard:true,       rare:true},
 ];
+/* Еда: f — сытость, m — настроение, cap — выше какого уровня сытость не поднимет */
+const FOODS = [
+  {id:'water',  en:'water',  ru:'вода',   icon:'💧', price:0, f:10, m:0,  cap:50},
+  {id:'bread',  en:'bread',  ru:'хлеб',   icon:'🍞', price:2, f:20, m:0},
+  {id:'milk',   en:'milk',   ru:'молоко', icon:'🥛', price:3, f:20, m:8},
+  {id:'cheese', en:'cheese', ru:'сыр',    icon:'🧀', price:4, f:35, m:0},
+  {id:'cake',   en:'cake',   ru:'торт',   icon:'🍰', price:5, f:10, m:25},
+  {id:'soup',   en:'soup',   ru:'суп',    icon:'🍲', price:6, f:60, m:0},
+];
+/* Рост питомца: at — сколько «дней хорошей заботы» нужно; gs — размер картинки */
+const STAGES = [
+  {at:0,  name:'Малыш',     nameF:'Малышка',   gs:.72},
+  {at:3,  name:'Подросток', nameF:'Подросток', gs:.86},
+  {at:10, name:'Взрослый',  nameF:'Взрослая',  gs:1},
+  {at:25, name:'Чемпион',   nameF:'Чемпионка', gs:1},
+];
+/* Команды: st — с какой стадии роста питомец их умеет */
+const TRICKS = [
+  {en:'sit',   ru:'сидеть',  st:1, anim:'sad'},
+  {en:'jump',  ru:'прыгай',  st:1, anim:'jump'},
+  {en:'run',   ru:'беги',    st:1, anim:'runx'},
+  {en:'dance', ru:'танцуй',  st:2, anim:'dance'},
+  {en:'sing',  ru:'пой',     st:2, anim:'jump'},
+  {en:'sleep', ru:'спи',     st:2, anim:'nap'},
+];
+/* Открытки к подаркам */
+const CARDS = [
+  {en:'This is for you!', ru:'Это тебе!'},
+  {en:'Thank you!',       ru:'Спасибо!'},
+  {en:'Good job!',        ru:'Молодец!'},
+  {en:'Happy birthday!',  ru:'С днём рождения!'},
+  {en:'I like you!',      ru:'Ты мне нравишься!'},
+];
+/* Общая цель группы: на что копят все вместе (need — сколько всего косточек нужно к этому шагу) */
+const FUND = [
+  {name:'Будка',  icon:'🛖', need:150},
+  {name:'Сад',    icon:'🌷', need:450},
+  {name:'Фонтан', icon:'⛲', need:1000},
+  {name:'Замок',  icon:'🏰', need:2000},
+];
+/* Английские слова и фразы, которых нет в уроках, но они звучат в игре (записываются tools/build-audio.mjs) */
+const EXTRA = ['bowl', 'leash', 'books', 'shop', 'star', 'guitar', 'tent', 'rocket', 'boat', 'bike', 'fountain', 'castle',
+  'sit', 'jump', 'good dog', 'yummy', "let's go for a walk", 'good night', ...CARDS.map(c => c.en)];
 const WALLS = [
   {id:'',       ru:'обычные',                   price:0,  css:'linear-gradient(#fdf1dc,#f8e3c0)', dot:'#f8e3c0'},
   {id:'blue',   en:'blue',   ru:'синие',        price:30, css:'linear-gradient(#cfe6ff,#a9d0ff)', dot:'#3b82f6'},

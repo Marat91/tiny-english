@@ -1,5 +1,5 @@
 CHARACTERS.push({
-  id: 'cat', name: 'Луна', kind: 'котёнок', emoji: '🐱', hello: 'Meow! Hello!', helloRu: 'Мяу! Привет!',
+  id: 'cat', name: 'Луна', f: true, kind: 'котёнок', emoji: '🐱', hello: 'Meow! Hello!', helloRu: 'Мяу! Привет!',
   svg: `
   <defs>
     <radialGradient id="ctFur" cx=".38" cy=".28" r=".95"><stop offset="0" stop-color="#ffd29a"/><stop offset=".7" stop-color="#f3a550"/><stop offset="1" stop-color="#dd8a36"/></radialGradient>

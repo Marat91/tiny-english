@@ -419,3 +419,54 @@ button.brow{width:100%;font:inherit;font-weight:800;font-size:clamp(16px,2.6vw,1
 
 .bigem .avimg{width:1em;height:1em;vertical-align:middle}
 .brow .bav .avimg{width:1.25em;height:1.25em}
+
+/* ===== жизнь питомца ===== */
+.pet.pic img{scale:var(--gs,1)}
+.pbars{display:flex;flex-direction:column;gap:5px;max-width:300px;margin-top:12px}
+.pb{display:flex;align-items:center;gap:8px;font-size:15px}
+.pb i{flex:1;height:10px;border-radius:999px;background:rgba(120,125,160,.22);overflow:hidden}
+.pb b{display:block;height:100%;border-radius:999px;background:var(--yellow);transition:width .5s}
+.pb.ok b{background:#34d399}.pb.low b{background:var(--red)}
+.hero .pb i{background:rgba(255,255,255,.28)}
+.room + .pbars,.yard + .pbars{margin:14px auto 0;max-width:420px}
+.carenote{margin:10px 0 0;font-size:15px}
+.carenote.ok{color:#12803c}.carenote.low{color:#c81e4a}
+.grow{max-width:420px;margin:10px auto 0;text-align:center}
+.grow small{font-weight:800;color:var(--muted);font-size:13px}
+.grow .toybar,.goal .toybar{background:#e3e6f3;margin:6px auto 0;max-width:none}
+.toybar.big{height:18px;max-width:none;background:#e3e6f3}
+.yard{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-top:8px;padding:10px 16px 8px;border-radius:22px;font-size:clamp(30px,7vw,48px);
+  background:linear-gradient(#bfe6ff 0 38%,#9bdb8b 38%);min-height:74px;position:relative}
+.yard small{position:absolute;right:14px;top:6px;font-size:12px;font-weight:800;color:rgba(30,35,64,.45)}
+.ri.y{position:static;font-size:1em}
+.pet.nap img{animation:pNap 2.6s ease-in-out}
+@keyframes pNap{0%,100%{transform:none}20%,80%{transform:scale(1.08,.8) translateY(4%)}50%{transform:scale(1.12,.76) translateY(5%)}}
+.pet.runx img{animation:pRun 1.6s ease-in-out}
+@keyframes pRun{0%,100%{transform:none}25%{transform:translateX(-26%) rotate(-4deg)}50%{transform:translateX(0) translateY(-6%)}75%{transform:translateX(26%) rotate(4deg)}}
+.shop.foods{grid-template-columns:repeat(auto-fill,minmax(104px,1fr))}
+.si{position:relative}
+.aim{position:absolute;top:6px;right:6px;width:32px;height:32px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:15px;filter:grayscale(1);opacity:.6}
+.aim.on{filter:none;opacity:1;background:#fff6d6;box-shadow:0 0 0 2.5px var(--yellow)}
+.goal{display:flex;align-items:center;gap:12px;background:#fff;border-radius:22px;padding:12px 14px;box-shadow:var(--sh);border:2.5px solid #ffd98a;margin-top:12px}
+.goal .g-i{font-size:40px}.goal .g-t{flex:1;min-width:0;text-align:left}
+.goal small{color:var(--muted);font-weight:700;font-size:13px}
+.chip.trick small{color:var(--muted);font-size:.75em}
+.chip.trick.off{opacity:.45}
+.modal{position:fixed;inset:0;z-index:50;background:rgba(30,35,64,.45);display:flex;align-items:center;justify-content:center;padding:18px;animation:none !important}
+.mbox{background:#fff;border-radius:28px;padding:22px 20px;max-width:440px;width:100%;text-align:center;box-shadow:var(--sh-lg);font-weight:700;font-size:clamp(16px,2.6vw,19px)}
+.mbox p{margin:0 0 16px;line-height:1.4}
+.rep{text-align:left}
+.rep .task{text-align:left;margin-bottom:10px}
+.rp{display:flex;align-items:center;gap:10px;font-weight:800;font-size:15px;margin-top:6px}
+.rp span{width:96px;color:var(--muted)}
+.rp i{flex:1;height:14px;border-radius:999px;background:#e3e6f3;overflow:hidden}
+.rp b{display:block;height:100%;border-radius:999px;background:var(--orange)}
+.rp b.in{background:#34d399}
+.rp em{font-style:normal;width:52px;text-align:right}
+.rp-cats{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.rp-cats span{background:var(--bg);border-radius:999px;padding:4px 10px;font-weight:800;font-size:13px}
+.rep small{display:block;margin-top:10px;color:var(--muted);font-weight:700;font-size:14px}
+.review.giftb{border-color:#ff9bc4;animation:chest 1.4s ease-in-out infinite}
+.brow.tap{cursor:pointer}
+.brow.tap:active{transform:scale(.98)}
+.brow .chip{box-shadow:none;background:var(--p-soft);color:var(--p);padding:6px 12px;font-size:.8em}

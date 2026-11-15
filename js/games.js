@@ -50,15 +50,17 @@ function gameOver(id, score, replay){
   const best = hi[id] == null || (time ? score < hi[id] : score > hi[id]);
   if (best && (time || score > 0)) hi[id] = score;
   const got = gameBones(p, time ? 4 : Math.min(8, Math.ceil(score / (id === 'b' ? 3 : 2))));
-  p.gp = (p.gp || 0) + 1; dayMark(p, 'r'); touchStreak(p); saveStat(p); save();
+  const day = dailyIncome(p); petOf(p).m = clamp(petOf(p).m + 8);            // питомец любит, когда с ним играют
+  p.gp = (p.gp || 0) + 1; dayMark(p, 'r'); touchStreak(p); saveStat(p); careTick(p); save();
   G = null; hush();
   render('gameover', `
     <div class="stage" style="margin-top:24px"><div class="center">
-      ${petSVG(p.char, total(p), 'jump dance')}
+      ${myPetHTML(p, 'jump dance')}
       <h1>${time ? score + ' с' : score}</h1>
       <p class="sub" style="margin:0">${time ? 'Все пары найдены!' : plural(score, 'верный ответ', 'верных ответа', 'верных ответов')}
         ${best && hi[id] === score ? ' · 🏆 новый рекорд!' : ` · рекорд ${hi[id] != null ? hi[id] + (time ? ' с' : '') : '—'}`}</p>
       <div class="earned">${got ? `+${got} 🦴` : 'Косточки за игры на сегодня закончились — завтра будут снова'}</div>
+      ${day ? `<div class="gift">Доход за день: +${day} 🦴</div>` : ''}
       <div class="row"><button class="btn ghost" id="again">Ещё раз</button><button class="btn" id="back">К играм →</button></div>
     </div></div>`);
   fanfare();

@@ -3,6 +3,8 @@
    поэтому подарки (ошейник, бантик, очки, корона) общие и подходят всем. */
 const CHARACTERS = [];
 
+/* Слово в нужном роде: gw(персонаж, 'рад', 'рада') — у персонажа-девочки стоит f: true */
+const gw = (c, m, f) => c && c.f ? f : m;
 function petById(id){ return CHARACTERS.find(c => c.id === id) || CHARACTERS[0] }
 
 /* Заранее подгружаем позы «радуется» и «грустит», чтобы они менялись без задержки */
@@ -10,13 +12,14 @@ function preloadPets(){
   CHARACTERS.forEach(c => c.img && Object.values(c.img).forEach(src => { new Image().src = src }));
 }
 
-function petSVG(id, stars, cls){
+/* gs — размер по возрасту питомца (1 — взрослый); класс low — грустная поза, jump — радостная */
+function petSVG(id, stars, cls, gs){
   const c = petById(id), has = n => stars >= TOYS[n].at;
   if (c.img){
     /* Персонаж-картинка: подарки показываем значками под ним */
     const toys = TOYS.filter(t => stars >= t.at).map(t => t.icon).join('');
-    const pose = /\bjump\b/.test(cls || '') ? c.img.happy : c.img.idle;
-    return `<div class="pet pic ${cls || ''}" role="img" aria-label="${c.name}" data-char="${c.id}">
+    const pose = /\bjump\b/.test(cls || '') ? c.img.happy : /\blow\b/.test(cls || '') ? c.img.sad : c.img.idle;
+    return `<div class="pet pic ${cls || ''}" role="img" aria-label="${c.name}" data-char="${c.id}" style="--gs:${gs || 1}">
       <i class="sh"></i><img src="${pose}" alt="" draggable="false" width="640" height="640" style="max-width:100%;height:auto">${toys ? `<span class="toys">${toys}</span>` : ''}</div>`;
   }
   return `<svg class="pet ${cls || ''}" viewBox="0 -18 240 284" role="img" aria-label="${c.name}">

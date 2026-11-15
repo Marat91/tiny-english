@@ -185,10 +185,9 @@ function home(){
   const p = me(); if (!p) return profiles();
   if (p.b == null) p.b = total(p) * 2;                    // тем, кто играл до появления косточек, — за уже набранные звёзды
   seedRev(p);
-  const c = myPet(), t = total(p), done = abcDone(p), fed = p.fed === dayNo();
+  const c = myPet(), t = total(p), done = abcDone(p), q = petOf(p), gifts = myGifts(p).length;
+  const goal = SHOP.find(i => i.id === p.goal && !owns(p, i.id)), low = q.f < 35 ? gw(c, 'голоден', 'голодна') : q.m < 35 ? 'скучает' : q.e < 35 ? gw(c, 'устал', 'устала') : '';
   const dueN = dueItems(p).length, learned = Object.keys(revOf(p).m).length;
-  const nextToy = TOYS.find(x => x.at > t);
-  const prevAt = ([...TOYS].reverse().find(x => x.at <= t) || {at: 0}).at;
   const hello = pick([[c.hello, c.helloRu], ['Hello, ' + esc(p.name) + '!', 'Привет! Поиграем?'], ["Let's play!", 'Давай играть!']]);
   render('home', `
     <div class="top">
@@ -202,13 +201,12 @@ function home(){
       <div class="hero-txt">
         <div class="hi">${hello[0]}</div>
         <div class="hi-ru">${hello[1]}</div>
-        ${nextToy
-          ? `<div class="toy">Ещё ${nextToy.at - t} ⭐ — и у ${c.name} появится ${nextToy.icon} ${nextToy.name}</div>
-             <div class="toybar"><i style="width:${Math.max(4, Math.round((t - prevAt) / (nextToy.at - prevAt) * 100))}%"></i></div>`
-          : `<div class="toy">У ${c.name} есть все подарки! 🎉</div>`}
-        <button class="link" id="chg">${fed ? `🏠 В гости к ${c.name}` : `🦴 Покормить: ${c.name} хочет есть`}</button>
+        ${petBars(p)}
+        ${goal ? `<div class="toy">Коплю на ${goal.icon} ${esc(goal.en)}: ${Math.min(bones(p), goal.price)} из ${goal.price} 🦴</div>
+             <div class="toybar"><i style="width:${Math.min(100, Math.max(4, Math.round(bones(p) / goal.price * 100)))}%"></i></div>` : ''}
+        <button class="link" id="chg">${low ? `⚠️ ${c.name} ${low} — нужна твоя забота` : `🏠 ${c.name} · ${stageName(c, stageNo(p))}`}</button>
       </div>
-      ${petSVG(p.char, t)}
+      ${myPetHTML(p)}
     </div>
     ${hasSound() ? '' : '<div class="note">🔇 Звук пока не загрузился — проверь интернет и открой игру ещё раз.</div>'}
     <div class="menu">
@@ -217,6 +215,7 @@ function home(){
       <button id="m-album"><i>📒</i>Альбом</button>
       <button id="fam"><i>🏆</i>Рейтинг</button>
     </div>
+    ${gifts ? `<button class="review giftb" id="gift"><span class="rv-ic">🎁</span><span class="rv-t"><b>Тебе подарок!</b><small>${gifts > 1 ? `Тебя ждут ${gifts} ${plural(gifts, 'подарок', 'подарка', 'подарков')}` : 'Нажми, чтобы открыть'}</small></span><span class="rv-go">▶</span></button>` : ''}
     ${dailyHTML(p)}
 
     ${dueN
@@ -242,6 +241,7 @@ function home(){
   $('#m-album').onclick = album;
   $('#par').onclick = () => parents();
   $('#chest').onclick = () => openChest();
+  if ($('#gift')) $('#gift').onclick = giftOpen;
   $('#fam').onclick = rating;
   if ($('#rev')) $('#rev').onclick = startReview;
   $('#abc').onclick = () => alphabet();
@@ -266,10 +266,10 @@ function localBoard(){
 function boardHTML(rows){
   const medal = n => ['🥇','🥈','🥉'][n - 1] || n;
   let prev = 0;
-  return `<div class="board">${rows.map(r => {
+  return `<div class="board">${rows.map((r, k) => {
     const gap = prev && r.rank > prev + 1 ? '<div class="bgap">⋯</div>' : '';
     prev = r.rank;
-    return `${gap}<div class="brow ${r.mine ? 'mine' : ''}">
+    return `${gap}<div class="brow ${r.mine ? 'mine' : ''} ${r.ref && !r.mine ? 'tap' : ''}" ${r.ref && !r.mine ? `data-ref="1" data-k="${k}"` : ''}>
       <span class="rk">${medal(r.rank)}</span><span class="bav">${r.id ? av(r) : av(r.avatar, r.photo)}</span>
       <span class="bn">${esc(r.name)} <small>${petById(r.char).emoji}</small></span>
       <span class="bs">⭐ ${r.stars}</span><span class="bs">🔥 ${r.streak}</span>
@@ -305,6 +305,8 @@ function rating(){
           ? `<p class="sub">Все, кто учит английский в Tiny English${boardData && boardData.scope === 'all' ? ` · ${boardData.total}` : ''}</p>`
           : `<p class="sub">Участников: ${g.members} · вместе ⭐ ${rows ? rows.reduce((a, r) => a + r.stars, 0) : '…'}</p>`}
         ${rows ? boardHTML(rows) : '<p class="sub">Загружаю…</p>'}
+        ${on && g && rows && rows.length > 1 ? '<p class="sub" style="margin:10px 0 0;font-size:14px">Нажми на участника, чтобы зайти в гости или сделать подарок</p>' : ''}
+        ${on && g && boardData && boardData.scope === boardTab ? socialHTML(boardData) : ''}
         ${on && g ? `<div class="row" style="margin-top:18px">
             <button class="btn" id="inv">Пригласить в группу</button>
             <button class="btn ghost" id="leave">Выйти</button>
@@ -324,6 +326,7 @@ function rating(){
         <p class="sub" style="margin:10px 0 0;font-size:14px">Напоминание приходит от бота раз в день, если сегодня ещё не занимались. В своих группах тебя видно всегда.</p>`}`);
 
     $('#x').onclick = home;
+    if (on && g && boardData && boardData.scope === boardTab) wireSocial(g, boardData, draw);
     $$('[data-tab]').forEach(b => b.onclick = () => { boardTab = b.dataset.tab; draw(); load() });
     const settings = patch => call('/api/settings', {remind_on: srv.remind_on, remind_hour: srv.remind_hour, public: srv.public, ...patch});
     if ($('#ron')) $('#ron').onclick = async () => { await settings({remind_on: !srv.remind_on}); draw() };
@@ -476,7 +479,7 @@ function wireOptions(x, onRight){
   });
 }
 const later = (fn, ms) => { const mine = S, pos = S.pos; setTimeout(() => { if (S === mine && S.pos === pos) fn() }, ms) };
-const helper = text => `<div class="row">${petSVG(me().char, total(me()), 'small')}<p class="task" style="margin:0">${text}</p></div>`;
+const helper = text => `<div class="row">${myPetHTML(me(), 'small')}<p class="task" style="margin:0">${text}</p></div>`;
 
 /* ---------- буквы ---------- */
 STEPS.intro = ({x}) => {
@@ -633,7 +636,7 @@ function pairsGame(title, deck, need){
 function finish(){
   if (S.mode === 'duel'){ const r = {score: S.right, ms: Date.now() - S.t0}, done = S.done; S = null; hush(); return done(r) }
   const p = me(), before = total(p), L = S.L, mode = S.mode, m = revOf(p).m, tomorrow = dayNo() + 1, had = stickerSet(p);
-  let stars = 0, head, sub, big, again, got = 3;
+  let stars = 0, head, sub, big, again, got = 3;                    // got — сколько косточек положено за это занятие
 
   if (mode === 'review'){
     const n = S.n; dayMark(p, 'r');
@@ -653,7 +656,7 @@ function finish(){
       : `<div class="stars">${[1, 2, 3].map(n => `<span class="${n <= stars ? '' : 'off'}">⭐</span>`).join('')}</div>`;
     again = mode === 'exam' ? () => startExam(L) : () => startLesson(L);
   }
-  earn(p, got);
+  const pay = earnWork(p, got, true), grownTo = careTick(p);
   saveRev(p); saveStat(p); touchStreak(p); save();
   const after = total(p), c = myPet();
   const toy = TOYS.find(x => x.at > before && x.at <= after);
@@ -662,11 +665,12 @@ function finish(){
   render('finish', `
     <div class="stage" style="margin-top:24px">
       <div class="center">
-        ${petSVG(p.char, after, stars >= 2 ? 'jump dance' : '')}
+        ${myPetHTML(p, stars >= 2 ? 'jump dance' : '')}
         <h1>${head}</h1>
         <p class="sub" style="margin:0">${sub}</p>
         ${big}
-        <div class="earned">+${got} 🦴</div>
+        ${earnedHTML(p, pay)}
+        ${grownTo ? `<div class="gift">🎉 ${c.name} ${gw(c, 'вырос', 'выросла')}! Теперь ${gw(c, 'он', 'она')} — ${stageName(c, STAGES.indexOf(grownTo)).toLowerCase()}</div>` : ''}
         ${toy ? `<div class="gift">🎁 Новый подарок для ${c.name}: ${toy.icon} ${toy.name}!</div>` : ''}
         ${fresh.map(s => `<div class="gift">📒 ${s.gold ? 'Наклейка стала золотой' : 'Новая наклейка'}: ${s.icon} ${esc(s.name)}!</div>`).join('')}
         <div class="row">

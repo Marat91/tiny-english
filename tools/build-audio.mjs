@@ -13,7 +13,7 @@ const VOICE = process.env.VOICE || 'Samantha', RATE = process.env.RATE || '150';
 
 const chars = readdirSync(join(root, 'js/characters')).filter(f => f.endsWith('.js')).map(f => 'js/characters/' + f);
 const code = ['js/data.js', 'js/characters.js', ...chars].map(f => readFileSync(join(root, f), 'utf8')).join('\n;\n');
-const { LETTERS, TOPICS, PRAISE, CHARACTERS, HINTS, PHRASES } = vm.runInNewContext(code + '\n;({LETTERS, TOPICS, PRAISE, CHARACTERS, HINTS, PHRASES})');
+const { LETTERS, TOPICS, PRAISE, CHARACTERS, HINTS, PHRASES, EXTRA } = vm.runInNewContext(code + '\n;({LETTERS, TOPICS, PRAISE, CHARACTERS, HINTS, PHRASES, EXTRA})');
 const RU_VOICE = process.env.RU_VOICE || 'Milena', RU_RATE = process.env.RU_RATE || '170';
 
 const texts = new Set();
@@ -22,6 +22,7 @@ LETTERS.forEach(l => { texts.add(l.l); texts.add(l.word) });
 TOPICS.forEach(t => t.lessons.flat().forEach(w => texts.add(w.en)));
 PHRASES.forEach(ph => ph.set.forEach(x => texts.add(x.en)));
 PRAISE.forEach(p => texts.add(p.en));
+EXTRA.forEach(t => texts.add(t));
 CHARACTERS.forEach(c => texts.add(c.hello));
 ["Let's play!"].forEach(t => texts.add(t));
 
