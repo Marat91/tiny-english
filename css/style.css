@@ -18,7 +18,9 @@ body{
   background-attachment:fixed;
   -webkit-user-select:none;user-select:none;overflow-x:hidden;-webkit-font-smoothing:antialiased;
 }
-#app{max-width:880px;margin:0 auto;padding:calc(14px + env(safe-area-inset-top)) 16px calc(44px + env(safe-area-inset-bottom));min-height:100%}
+#app{max-width:1000px;margin:0 auto;min-height:100%;
+  padding:calc(14px + max(env(safe-area-inset-top), var(--tg-safe-area-inset-top, 0px)) + var(--tg-content-safe-area-inset-top, 0px)) calc(16px + var(--tg-safe-area-inset-right, 0px))
+          calc(44px + max(env(safe-area-inset-bottom), var(--tg-safe-area-inset-bottom, 0px))) calc(16px + var(--tg-safe-area-inset-left, 0px))}
 #app > *{animation:rise .38s cubic-bezier(.2,.8,.2,1) both}
 #app > *:nth-child(2){animation-delay:.04s}#app > *:nth-child(3){animation-delay:.08s}
 #app > *:nth-child(n+4){animation-delay:.12s}

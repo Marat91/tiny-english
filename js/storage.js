@@ -2,6 +2,17 @@
    в облако Telegram (CloudStorage) — тогда он доступен с любого устройства того же аккаунта. */
 const tg = window.Telegram && window.Telegram.WebApp;
 if (tg) { try { tg.ready(); tg.expand(); tg.setHeaderColor('#f3f5fd'); tg.setBackgroundColor('#f3f5fd') } catch(e){} }
+/* На телефоне и планшете открываемся на весь экран (Telegram 8.0+) и не даём случайно закрыть игру смахиванием вниз.
+   На компьютере оставляем обычное окно. */
+if (tg && tg.initData){
+  try { if (tg.isVersionAtLeast('7.7')) tg.disableVerticalSwipes() } catch(e){}
+  try {
+    if (['ios', 'android'].includes(tg.platform) && tg.isVersionAtLeast('8.0') && !tg.isFullscreen){
+      tg.onEvent('fullscreenFailed', () => {});                      // не получилось — остаёмся в обычном окне
+      tg.requestFullscreen();
+    }
+  } catch(e){}
+}
 
 const KEY = 'tiny-v2', OLD_KEY = 'buddy-v1', MAX_PROFILES = 8, CLOUD_LIMIT = 4096;
 
