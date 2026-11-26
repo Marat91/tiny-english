@@ -24,12 +24,15 @@ function games(){
       ${card('y', '✅', 'Да или нет', 'Картинка и слово совпадают?', hi.y ? 'рекорд ' + hi.y : '')}
       ${card('m', '🧠', 'Пары на время', 'Найди все пары как можно быстрее', hi.m ? 'рекорд ' + hi.m + ' с' : '')}
       ${card('c', '🐶', 'Питомец, сделай!', 'Слушай команду и покажи, что делать', hi.c ? 'рекорд ' + hi.c : '')}
+      ${card('h', '⛄', 'Спаси снеговика', 'Угадай слово по буквам, пока снеговик не растаял', hi.h ? 'рекорд ' + hi.h : '')}
+      ${card('s', '🔎', 'Найди слово', 'Слова спрятались среди букв', hi.s ? 'рекорд ' + hi.s : '')}
+      ${card('t', '🎓', 'Научи питомца', 'Питомец ошибается — поправь его', hi.t ? 'рекорд ' + hi.t : '')}
       ${card('d', '⚔️', 'Дуэль', 'Одинаковые вопросы — кто ответит лучше?', '')}
     </div>`);
   $('#x').onclick = home;
   $$('.gcard').forEach(b => b.onclick = () => {
     if (!ok) return buzz();
-    ({b: gameBalloons, y: gameYesNo, m: gameMemory, c: gameCommands, d: duel})[b.dataset.g]();
+    ({b: gameBalloons, y: gameYesNo, m: gameMemory, c: gameCommands, h: gameSnow, s: gameSearch, t: gameTeach, d: duel})[b.dataset.g]();
   });
 }
 

@@ -306,6 +306,7 @@ async function api(path, body, env){
   await ensureUser(env, u);
   if (path === '/api/duel') return duelApi(env, u, body);
   if (path === '/api/hear') return hearApi(env, u, body);
+  if (path === '/api/tour') return tourApi(env, u, body);
   if (path === '/api/chat') return chatApi(env, u, body);
   if (['/api/gift', '/api/visit', '/api/treat', '/api/ask', '/api/fund'].includes(path)) return socialApi(env, u, path, body);
 
@@ -436,6 +437,27 @@ async function remind(env, now){
     else if (r.status === 403) await env.DB.prepare('UPDATE users SET remind_on = 0 WHERE tg_id = ?').bind(u.tg_id).run();  // бота заблокировали
   }
   return sent;
+}
+
+/* Турнир недели в группе: у всех одинаковые вопросы (их выбирает игра по коду группы и номеру недели),
+   сервер хранит лучший результат каждого ученика за неделю. */
+async function tourApi(env, u, body){
+  const code = String(body.code || ''), week = int(body.week, 0, 1e6, 0);
+  if (!GROUP_RE.test(code) || !week) return json({ error: 'bad' }, 400);
+  const member = await env.DB.prepare('SELECT 1 FROM members WHERE code = ? AND tg_id = ?').bind(code, u.id).first();
+  if (!member) return json({ error: 'member' }, 403);
+  if (body.action === 'score'){
+    const pid = str(body.pid, 24), score = int(body.score, 0, 10, 0), ms = int(body.ms, 0, 36e5, 36e5);
+    if (!pid) return json({ error: 'pid' }, 400);
+    await env.DB.prepare(`INSERT INTO tours (code, week, tg_id, pid, name, avatar, score, ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(code, week, tg_id, pid) DO UPDATE SET name = excluded.name, avatar = excluded.avatar,
+          score = CASE WHEN excluded.score > tours.score OR (excluded.score = tours.score AND excluded.ms < tours.ms) THEN excluded.score ELSE tours.score END,
+          ms    = CASE WHEN excluded.score > tours.score OR (excluded.score = tours.score AND excluded.ms < tours.ms) THEN excluded.ms ELSE tours.ms END`)
+      .bind(code, week, u.id, pid, str(body.name, 20), str(body.avatar, 16), score, ms).run();
+  }
+  const rows = (await env.DB.prepare('SELECT tg_id, pid, name, avatar, score, ms FROM tours WHERE code = ? AND week = ? ORDER BY score DESC, ms ASC LIMIT 50').bind(code, week).all()).results;
+  const last = await env.DB.prepare('SELECT name, score FROM tours WHERE code = ? AND week = ? ORDER BY score DESC, ms ASC LIMIT 1').bind(code, week - 1).first();
+  return json({ rows: rows.map(r => ({ name: r.name, avatar: r.avatar, score: r.score, ms: r.ms, mine: r.tg_id === u.id })), last: last || null });
 }
 
 /* Сколько раз сегодня уже пользовались (и +1). Вернёт, сколько осталось; меньше нуля — лимит исчерпан */
@@ -587,5 +609,8 @@ export default {
     ctx.waitUntil(remind(env, event.scheduledTime));
     ctx.waitUntil(weekly(env, event.scheduledTime).catch(e => console.error(e)));
     ctx.waitUntil(env.DB.prepare('DELETE FROM usage WHERE day < ?').bind(d3.slice(0, 10)).run().catch(e => console.error(e)));
+    // турниры: храним только последние недели (номер недели считается с 1970 года)
+    const oldWeek = Math.floor((Math.floor(event.scheduledTime / 864e5) - 4) / 7) - 8;
+    ctx.waitUntil(env.DB.prepare('DELETE FROM tours WHERE week < ?').bind(oldWeek).run().catch(e => console.error(e)));
   },
 };

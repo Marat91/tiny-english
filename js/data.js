@@ -133,6 +133,26 @@ const TOPICS = [
     [['up','вверх','⬆️'], ['down','вниз','⬇️'], ['left','налево','⬅️'], ['right','направо','➡️']],
     [['stop','стоп','🛑'], ['go','иди','🟢'], ['here','здесь','📍'], ['there','там','👉']],
   ]},
+  {id:'city', title:'Город', icon:'🏙️', lessons:[
+    [['park','парк','🏞️'], ['shop','магазин','🏪'], ['hospital','больница','🏥'], ['library','библиотека','🏛️']],
+    [['street','улица','🛣️'], ['bridge','мост','🌉'], ['bank','банк','🏦'], ['cinema','кино','🎬']],
+  ]},
+  {id:'sports', title:'Спорт', icon:'⚽', lessons:[
+    [['football','футбол','⚽'], ['tennis','теннис','🎾'], ['basketball','баскетбол','🏀'], ['ski','лыжи','🎿']],
+    [['hockey','хоккей','🏒'], ['boxing','бокс','🥊'], ['skate','коньки','⛸️'], ['chess','шахматы','♟️']],
+  ]},
+  {id:'insects', title:'Насекомые', icon:'🐝', lessons:[
+    [['bee','пчела','🐝'], ['ant','муравей','🐜'], ['butterfly','бабочка','🦋'], ['ladybug','божья коровка','🐞']],
+    [['spider','паук','🕷️'], ['fly','муха','🪰'], ['mosquito','комар','🦟'], ['worm','червяк','🪱']],
+  ]},
+  {id:'kitchen', title:'Кухня', icon:'🍴', lessons:[
+    [['cup','чашка','🍵'], ['spoon','ложка','🥄'], ['fork','вилка','🍴'], ['knife','нож','🔪']],
+    [['plate','тарелка','🍽️'], ['bowl','миска','🥣'], ['kettle','чайник','🫖'], ['bottle','бутылочка','🍼']],
+  ]},
+  {id:'music', title:'Музыка', icon:'🎵', lessons:[
+    [['piano','пианино','🎹'], ['guitar','гитара','🎸'], ['violin','скрипка','🎻'], ['trumpet','труба','🎺']],
+    [['song','песня','🎵'], ['microphone','микрофон','🎤'], ['saxophone','саксофон','🎷'], ['radio','радио','📻']],
+  ]},
   /* Праздничная тема: открыта во время новогоднего события (и потом — если её начали). См. NY ниже */
   {id:'newyear', title:'Новый год', icon:'🎄', holiday:true, lessons:[
     [['Christmas tree','ёлка','🎄'], ['gift','подарок','🎁'], ['Santa','Дед Мороз','🎅'], ['snowman','снеговик','⛄']],
@@ -166,6 +186,11 @@ const PHRASES = [
   {topic:'time',    pat:'I like …',     set:[['I like winter','Я люблю зиму'], ['I like spring','Я люблю весну'], ['I like summer','Я люблю лето'], ['I like autumn','Я люблю осень']]},
   {topic:'adjectives', pat:'It is …',   set:[['It is big','Он большой'], ['It is small','Он маленький'], ['It is fast','Он быстрый'], ['It is slow','Он медленный']]},
   {topic:'newyear', pat:'I see a …',  set:[['I see a snowman','Я вижу снеговика'], ['I see a reindeer','Я вижу оленя'], ['I see a snowflake','Я вижу снежинку'], ['I have a gift','У меня есть подарок']]},
+  {topic:'city',    pat:"Let's go to the …", set:[["Let's go to the park",'Пойдём в парк'], ["Let's go to the shop",'Пойдём в магазин'], ["Let's go to the library",'Пойдём в библиотеку'], ["Let's go to the cinema",'Пойдём в кино']]},
+  {topic:'sports',  pat:'I play …',     set:[['I play football','Я играю в футбол'], ['I play tennis','Я играю в теннис'], ['I play hockey','Я играю в хоккей'], ['I play chess','Я играю в шахматы']]},
+  {topic:'insects', pat:'Look, a …',    set:[['Look, a bee','Смотри, пчела'], ['Look, a butterfly','Смотри, бабочка'], ['Look, a ladybug','Смотри, божья коровка'], ['Look, a spider','Смотри, паук']]},
+  {topic:'kitchen', pat:'I need a …',   set:[['I need a spoon','Мне нужна ложка'], ['I need a fork','Мне нужна вилка'], ['I need a plate','Мне нужна тарелка'], ['I need a cup','Мне нужна чашка']]},
+  {topic:'music',   pat:'I play the …', set:[['I play the piano','Я играю на пианино'], ['I play the guitar','Я играю на гитаре'], ['I play the violin','Я играю на скрипке'], ['I play the trumpet','Я играю на трубе']]},
   {topic:'directions', pat:'Look …',    set:[['Look up','Посмотри вверх'], ['Look down','Посмотри вниз'], ['Look left','Посмотри налево'], ['Look right','Посмотри направо']]},
 ].map(ph => ({...ph, set: ph.set.map(([en, ru]) => { const wn = en.split(' ').pop(); return {...WORDS[wn], k: en, en, ru, w: wn} })}));
 
@@ -471,6 +496,14 @@ const STORY_PARTS = {
 };
 const STORY_BITS = ['This is my', 'My', 'is', 'It is in the', 'It can', 'It is', 'The end!'];
 
+/* Костюмы питомца: за выученные слова (сколько слов в повторении). Видны в комнате и на главном экране */
+const OUTFITS = [
+  {at:50,  icon:'🧢', name:'кепка'},  {at:100, icon:'🧣', name:'шарф'},   {at:150, icon:'🎒', name:'рюкзак'},
+  {at:200, icon:'🎩', name:'цилиндр'}, {at:250, icon:'🏅', name:'медаль'}, {at:300, icon:'🎓', name:'шапочка выпускника'},
+];
+/* Турнир недели: из каких тем брать вопросы (их знают почти все) */
+const TOUR_TOPICS = ['colors', 'animals', 'numbers', 'family', 'hello', 'food'];
+
 /* Задания, которые произносятся по-русски перед английским словом (один раз за урок на каждый вид задания).
    Ключ — вид задания в игре. После изменения пересоберите озвучку: node tools/build-audio.mjs */
 const HINTS = {
@@ -530,6 +563,13 @@ const HINTS = {
   cmp:     'Послушай вопрос и нажми на нужную картинку.',
   mystory: 'Придумай свою историю! Выбирай героя, цвет и место.',
   chat:    'Поболтай с питомцем по-английски!',
+  dict:    'Диктант! Послушай слово и собери его из букв. Подсказки не будет.',
+  teach:   'Научи питомца! Он называет картинки. Если он ошибся — нажми «Неверно» и подскажи.',
+  g_h:     'Спаси снеговика! Угадай слово по буквам. За каждую ошибку снеговик тает.',
+  g_s:     'Найди слова в буквах! Нажми на первую и последнюю букву слова.',
+  sleep:   'Слушаем слова. Просто смотри и слушай.',
+  fix:     'Работа над ошибками. Повторим слова, которые были трудными.',
+  tour:    'Турнир недели! Ответь на вопросы — у всех в группе они одинаковые.',
 };
 
 /* Похвала в конце урока: 3, 2 и 1 звезда */
@@ -630,7 +670,7 @@ const FUND = [
   {name:'Замок',  icon:'🏰', need:2000},
 ];
 /* Английские слова и фразы, которых нет в уроках, но они звучат в игре (записываются tools/build-audio.mjs) */
-const EXTRA = [...STORY_BITS, "What time is it?", ...CLOCK_HOURS.map((_, i) => TIME_SAY(i + 1)), 'coins', 'Here you are', 'How many coins?',
+const EXTRA = ['It is a', 'Oh, thank you!', 'Good night!', ...STORY_BITS, "What time is it?", ...CLOCK_HOURS.map((_, i) => TIME_SAY(i + 1)), 'coins', 'Here you are', 'How many coins?',
   ...OPPOSITES.flatMap(o => [o.a.en, o.b.en]), ...COMPARE.map(c => c.q), ...Object.values(STORY_PARTS).flat(), 'bowl', 'leash', 'books', 'shop', 'star', 'guitar', 'tent', 'rocket', 'boat', 'bike', 'fountain', 'castle',
   'sit', 'jump', 'good dog', 'Happy New Year', ...COMMANDS.flatMap(c => [c.en, 'please ' + c.en]), 'yummy', "let's go for a walk", 'good night', ...CARDS.map(c => c.en)];
 const WALLS = [

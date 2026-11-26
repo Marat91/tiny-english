@@ -597,3 +597,33 @@ button.brow{width:100%;font:inherit;font-weight:800;font-size:clamp(16px,2.6vw,1
 .chatin{display:flex;gap:8px;align-items:center;margin-top:10px}
 .chatin input{flex:1;min-width:0;font:inherit;font-weight:800;font-size:17px;padding:14px 16px;border-radius:20px;border:2.5px solid var(--line);background:#fff}
 .chatin .btn.round{width:52px;height:52px;font-size:22px;flex:none}
+/* снеговик */
+.snowman{position:relative;height:110px;text-align:center}
+.snowman span{display:inline-block;font-size:86px;line-height:1;transition:transform .4s,opacity .4s;transform-origin:bottom}
+.snowman i{position:absolute;left:0;right:0;bottom:-6px;font-style:normal;font-size:18px;letter-spacing:2px}
+.snowman.melt span{transform:scale(.1) !important;opacity:.2 !important}
+.tile:disabled{opacity:.45}
+.tile.ok{background:var(--green-soft);border-color:var(--green)}
+/* найди слово */
+.wgrid{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;max-width:400px;margin:0 auto}
+.wc{aspect-ratio:1;border-radius:10px;background:#fff;box-shadow:var(--sh);font-weight:900;font-size:clamp(16px,4.4vw,24px);border:2px solid transparent;padding:0}
+.wc.sel{border-color:var(--orange);background:#fff4c9}
+.wc.found{background:var(--green-soft);color:var(--green)}
+.wlist{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:14px}
+.wlist span{background:#fff;border-radius:999px;padding:6px 12px;font-weight:800;box-shadow:var(--sh)}
+.wlist span.found{text-decoration:line-through;opacity:.5}
+/* перед сном */
+.sleepbox{position:fixed;inset:0;background:linear-gradient(#1b1f45,#2b2f63);color:#e6e9ff;padding:16px;overflow:auto;z-index:20}
+.sleepbox .bigword{color:#c9ccff}
+.sleepbox .ruhint{color:#9aa0d0}
+/* карточки для печати */
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-top:8px}
+.pcard{border:1.5px dashed #b9bfd3;padding:14px 6px;text-align:center;background:#fff;break-inside:avoid}
+.pcard span{display:block;font-size:54px;line-height:1.1}
+.pcard b{display:block;font-size:22px}
+.pcard small{color:var(--muted)}
+@media print{
+  body{background:#fff}
+  .noprint,.snow{display:none !important}
+  .pcard{box-shadow:none}
+}

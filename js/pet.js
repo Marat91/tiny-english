@@ -19,7 +19,7 @@ const stageName = (c, n) => gw(c, STAGES[n].name, STAGES[n].nameF);
 const praise = c => c.id === 'dog' ? 'good dog' : 'good job';
 const petLook = p => care(p) < 35 ? 'low' : '';
 const owns = (p, id) => id === 'bowl' || (p.own || []).includes(id);
-const myPetHTML = (p, cls) => petSVG(p.char, total(p), (cls || '') + ' ' + petLook(p), STAGES[stageNo(p)].gs);
+const myPetHTML = (p, cls) => petSVG(p.char, total(p), (cls || '') + ' ' + petLook(p), STAGES[stageNo(p)].gs, outfitIcons(p));
 
 function petBars(p){
   const q = petOf(p), bar = (icon, v, name) => `<div class="pb ${v < 35 ? 'low' : v >= 70 ? 'ok' : ''}" title="${name}"><span>${icon}</span><i><b style="width:${Math.max(3, Math.round(v))}%"></b></i></div>`;

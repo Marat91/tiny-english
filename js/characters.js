@@ -12,18 +12,19 @@ function preloadPets(){
   CHARACTERS.forEach(c => c.img && Object.values(c.img).forEach(src => { new Image().src = src }));
 }
 
-/* gs — размер по возрасту питомца (1 — взрослый); класс low — грустная поза, jump — радостная */
-function petSVG(id, stars, cls, gs){
+/* gs — размер по возрасту питомца (1 — взрослый); класс low — грустная поза, jump — радостная; extra — значки костюмов */
+function petSVG(id, stars, cls, gs, extra){
   const c = petById(id), has = n => stars >= TOYS[n].at;
   if (c.img){
     /* Персонаж-картинка: подарки показываем значками под ним */
-    const toys = TOYS.filter(t => stars >= t.at).map(t => t.icon).join('');
+    const toys = TOYS.filter(t => stars >= t.at).map(t => t.icon).join('') + (extra || '');
     const pose = /\bjump\b/.test(cls || '') ? c.img.happy : /\blow\b/.test(cls || '') ? c.img.sad : c.img.idle;
     return `<div class="pet pic ${cls || ''}" role="img" aria-label="${c.name}" data-char="${c.id}" style="--gs:${gs || 1}">
       <i class="sh"></i><img src="${pose}" alt="" draggable="false" width="640" height="640" style="max-width:100%;height:auto">${toys ? `<span class="toys">${toys}</span>` : ''}</div>`;
   }
   return `<svg class="pet ${cls || ''}" viewBox="0 -18 240 284" role="img" aria-label="${c.name}">
     ${c.svg}
+    ${extra ? `<text x="120" y="262" text-anchor="middle" font-size="26">${extra}</text>` : ''}
     ${has(0) ? `<path d="M86 146 q34 20 68 0" stroke="#e5484d" stroke-width="10" fill="none" stroke-linecap="round"/>
                 <circle cx="120" cy="161" r="7.5" fill="#ffd43b" stroke="#e0a800" stroke-width="2"/>` : ''}
     ${has(1) ? `<g transform="translate(76 50) rotate(-20)"><path d="M0 0 l-19 -13 v26 z M0 0 l19 -13 v26 z" fill="#ff8fab"/><circle r="6.5" fill="#ff5c8a"/></g>` : ''}

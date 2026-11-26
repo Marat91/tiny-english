@@ -259,6 +259,7 @@ function home(){
            <small>${dueN} ${plural(dueN, 'слово ждёт', 'слова ждут', 'слов ждут')} тебя, пока не забылись</small></span><span class="rv-go">▶</span></button>`
       : learned ? `<div class="review done"><span class="rv-ic">✅</span><span class="rv-t"><b>Всё повторено</b><small>Новые слова для повторения появятся завтра</small></span></div>` : ''}
 
+    ${moreHTML(p)}
     <h3 class="sec">🔤 Алфавит</h3>
     <div class="grid">
       ${ALL.filter(L => L.id.startsWith('abc:')).map(L => lessonCard(p, L)).join('')}
@@ -288,6 +289,7 @@ function home(){
   if ($('#rev')) $('#rev').onclick = startReview;
   $('#abc').onclick = () => alphabet();
   $('#m-map').onclick = worldMap;
+  wireMore();
   if ($('#trc')) $('#trc').onclick = startTrace;
   if ($('#mys')) $('#mys').onclick = () => myStory();
   if ($('#m-chat')) $('#m-chat').onclick = chat;
@@ -580,8 +582,8 @@ function startLesson(L){
 function startExam(L){
   const words = !!L.t;
   const items = words ? shuffle(L.set) : shuffle(LETTERS).slice(0, 12);
-  const T = words ? ['wlisten', 'wread', 'whear', 'wbuild'] : ['listen', 'missing'];
-  const kind = (x, i) => { const t = T[i % T.length]; return t === 'wbuild' && !canBuild(x) ? 'whear' : t };
+  const T = words ? ['wlisten', 'wread', 'whear', 'dict'] : ['listen', 'missing'];          // dict — диктант на слух
+  const kind = (x, i) => { const t = T[i % T.length]; return t === 'dict' && !plainWord(x) ? 'whear' : t };
   S = {L, mode: 'exam', steps: items.map((x, i) => ({t: kind(x, i), x})), pos: 0, mistakes: 0, pool: L.set, missed: new Set()};
   render('lesson', `
     <div class="lbar"><button class="x" id="x">✕</button><div class="prog"><i style="width:0%"></i></div></div>
@@ -1099,7 +1101,7 @@ function pairsGame(title, deck, need){
 
 function finish(){
   if (S.mode === 'duel'){ const r = {score: S.right, ms: Date.now() - S.t0}, done = S.done; S = null; hush(); return done(r) }
-  const p = me(), before = total(p), L = S.L, mode = S.mode, m = revOf(p).m, tomorrow = dayNo() + 1, had = stickerSet(p);
+  const p = me(), before = total(p), L = S.L, mode = S.mode, m = revOf(p).m, tomorrow = dayNo() + 1, had = stickerSet(p), wordsBefore = learnedN(p);
   let stars = 0, head, sub, big, again, got = 3;                    // got — сколько косточек положено за это занятие
 
   if (mode === 'review'){
@@ -1118,13 +1120,14 @@ function finish(){
     big = mode === 'exam'
       ? `<div class="bigem medal">${['', '🥉', '🥈', '🥇'][stars]}</div>${stars < 3 ? '<p class="sub" style="margin:0">Золото — если ошибиться не больше одного раза</p>' : ''}`
       : `<div class="stars">${[1, 2, 3].map(n => `<span class="${n <= stars ? '' : 'off'}">⭐</span>`).join('')}</div>`;
-    again = mode === 'exam' ? () => startExam(L) : L.kind === 'trace' ? startTrace : () => startLesson(L);
+    again = L.again || (mode === 'exam' ? () => startExam(L) : L.kind === 'trace' ? startTrace : () => startLesson(L));
   }
   const pay = earnWork(p, got, true), grownTo = careTick(p);
   saveRev(p); saveStat(p); touchStreak(p); save();
   const after = total(p), c = myPet();
   const toy = TOYS.find(x => x.at > before && x.at <= after);
   const fresh = newStickers(p, had);
+  const outfit = OUTFITS.find(o => o.at > wordsBefore && o.at <= learnedN(p));            // новый костюм за выученные слова
   S = null;
   render('finish', `
     <div class="stage" style="margin-top:24px">
@@ -1136,6 +1139,7 @@ function finish(){
         ${earnedHTML(p, pay)}
         ${grownTo ? `<div class="gift">🎉 ${c.name} ${gw(c, 'вырос', 'выросла')}! Теперь ${gw(c, 'он', 'она')} — ${stageName(c, STAGES.indexOf(grownTo)).toLowerCase()}</div>` : ''}
         ${toy ? `<div class="gift">🎁 Новый подарок для ${c.name}: ${toy.icon} ${toy.name}!</div>` : ''}
+        ${outfit ? `<div class="gift">🎖️ ${outfit.at} слов выучено! Новый костюм для ${c.name}: ${outfit.icon} ${outfit.name}</div>` : ''}
         ${fresh.map(s => `<div class="gift">📒 ${s.gold ? 'Наклейка стала золотой' : 'Новая наклейка'}: ${s.icon} ${esc(s.name)}!</div>`).join('')}
         <div class="row">
           ${again ? `<button class="btn ghost" id="again">${mode === 'review' ? 'Ещё повторить' : 'Ещё раз'}</button>` : ''}
@@ -1151,6 +1155,8 @@ function finish(){
 /* ================= Старт ================= */
 preloadPets();
 function start(){
+  const pr = /^#print=([a-z0-9,]+)$/.exec(location.hash);                 // лист с карточками для печати (см. more.js)
+  if (pr) return printSheet(pr[1].split(','));
   db.profiles.length ? (me() ? home() : profiles()) : addProfile(); queueSync() }
 if (cloud){
   render('loading', `<div class="center" style="margin-top:60px">${petSVG('dog', 0)}<p class="sub">Загружаю…</p></div>`);
