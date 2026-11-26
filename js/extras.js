@@ -49,7 +49,7 @@ function stickers(p){
   const ms = Math.max(p.ms || 0, liveStreak(p));
   return [
     {id: 'abc', icon: '🔤', name: 'Алфавит', have: abcDone(p) >= ABC.length, gold: p.stars['abc:x'] === 3, how: 'Пройди все уроки алфавита'},
-    ...TOPICS.map(t => ({id: t.id, icon: t.icon, name: t.title, have: topicDone(p, t), gold: p.stars[t.id + ':x'] === 3, how: 'Пройди оба урока темы'})),
+    ...TOPICS.map(t => ({id: t.id, icon: t.icon, name: t.title, have: topicDone(p, t), gold: p.stars[t.id + ':x'] === 3, how: 'Пройди все уроки темы'})),
     {id: 'phr', icon: '💬', name: 'Фразы', have: ALL.filter(L => L.kind === 'phrase').every(L => p.stars[L.id] > 0), how: 'Пройди все уроки с фразами'},
     ...[[20, '📗'], [50, '📘'], [100, '📚']].map(([n, icon]) => ({id: 'w' + n, icon, name: n + ' слов', have: learned >= n, how: `Выучи ${n} слов`})),
     ...[[3, '🔥'], [7, '☄️'], [14, '🌟'], [30, '🏅']].map(([n, icon]) => ({id: 's' + n, icon, name: n + ' ' + plural(n, 'день', 'дня', 'дней') + ' подряд', have: ms >= n, how: `Занимайся ${n} ${plural(n, 'день', 'дня', 'дней')} подряд`})),

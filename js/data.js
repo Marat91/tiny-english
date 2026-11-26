@@ -112,6 +112,27 @@ const TOPICS = [
     [['doctor','врач','🧑‍⚕️'], ['cook','повар','🧑‍🍳'], ['farmer','фермер','🧑‍🌾'], ['pilot','лётчик','🧑‍✈️']],
     [['police officer','полицейский','👮'], ['firefighter','пожарный','🧑‍🚒'], ['artist','художник','🧑‍🎨'], ['singer','певец','🧑‍🎤']],
   ]},
+  {id:'days', title:'Дни недели', icon:'📅', lessons:[
+    [['Monday','понедельник','1'], ['Tuesday','вторник','2'], ['Wednesday','среда','3'], ['Thursday','четверг','4']],
+    [['Friday','пятница','5'], ['Saturday','суббота','6'], ['Sunday','воскресенье','7'], ['week','неделя','📅']],
+  ]},
+  {id:'months', title:'Месяцы', icon:'🗓️', lessons:[
+    [['January','январь','1'], ['February','февраль','2'], ['March','март','3'], ['April','апрель','4']],
+    [['May','май','5'], ['June','июнь','6'], ['July','июль','7'], ['August','август','8']],
+    [['September','сентябрь','9'], ['October','октябрь','10'], ['November','ноябрь','11'], ['December','декабрь','12']],
+  ]},
+  {id:'time', title:'Время года и суток', icon:'🍂', lessons:[
+    [['winter','зима','☃️'], ['spring','весна','🌷'], ['summer','лето','🏖️'], ['autumn','осень','🍂']],
+    [['morning','утро','🌄'], ['day','день','🏙️'], ['evening','вечер','🌆'], ['night','ночь','🌃']],
+  ]},
+  {id:'adjectives', title:'Какой?', icon:'🐘', lessons:[
+    [['big','большой','🐘'], ['small','маленький','🐭'], ['fast','быстрый','🐆'], ['slow','медленный','🐢']],
+    [['tall','высокий','🦒'], ['long','длинный','🐍'], ['new','новый','🎁'], ['old','старый','🏚️']],
+  ]},
+  {id:'directions', title:'Куда?', icon:'⬆️', lessons:[
+    [['up','вверх','⬆️'], ['down','вниз','⬇️'], ['left','налево','⬅️'], ['right','направо','➡️']],
+    [['stop','стоп','🛑'], ['go','иди','🟢'], ['here','здесь','📍'], ['there','там','👉']],
+  ]},
 ].map(t => ({...t, lessons: t.lessons.map(set => set.map(w))}));
 
 /* Фразы: короткие предложения из уже знакомых слов. Урок открывается, когда пройдена его тема.
@@ -136,7 +157,130 @@ const PHRASES = [
   {topic:'zoo',     pat:'Look at the …', set:[['Look at the lion','Посмотри на льва'], ['Look at the monkey','Посмотри на обезьяну'], ['Look at the elephant','Посмотри на слона'], ['Look at the giraffe','Посмотри на жирафа']]},
   {topic:'nature',  pat:'I like the …', set:[['I like the sea','Я люблю море'], ['I like the flower','Мне нравится цветок'], ['I like the moon','Мне нравится луна'], ['I like the river','Мне нравится река']]},
   {topic:'jobs',    pat:'I want to be a …', set:[['I want to be a doctor','Я хочу быть врачом'], ['I want to be a pilot','Я хочу быть лётчиком'], ['I want to be a cook','Я хочу быть поваром'], ['I want to be a singer','Я хочу быть певцом']]},
+  {topic:'days',    pat:'Today is …',   set:[['Today is Monday','Сегодня понедельник'], ['Today is Friday','Сегодня пятница'], ['Today is Saturday','Сегодня суббота'], ['Today is Sunday','Сегодня воскресенье']]},
+  {topic:'time',    pat:'I like …',     set:[['I like winter','Я люблю зиму'], ['I like spring','Я люблю весну'], ['I like summer','Я люблю лето'], ['I like autumn','Я люблю осень']]},
+  {topic:'adjectives', pat:'It is …',   set:[['It is big','Он большой'], ['It is small','Он маленький'], ['It is fast','Он быстрый'], ['It is slow','Он медленный']]},
+  {topic:'directions', pat:'Look …',    set:[['Look up','Посмотри вверх'], ['Look down','Посмотри вниз'], ['Look left','Посмотри налево'], ['Look right','Посмотри направо']]},
 ].map(ph => ({...ph, set: ph.set.map(([en, ru]) => { const wn = en.split(' ').pop(); return {...WORDS[wn], k: en, en, ru, w: wn} })}));
+
+/* Учимся читать: слова-«семейки» с одинаковым окончанием. Открывается после всего алфавита.
+   Ребёнок читает слово сам (без звука) и подставляет первую букву. fam — общее окончание. */
+const READ = [
+  [{fam:'at', words:[['cat','кот','🐱'], ['hat','шляпа','🎩'], ['bat','летучая мышь','🦇'], ['rat','крыса','🐀']]},
+   {fam:'an', words:[['man','мужчина','🧔'], ['pan','сковорода','🍳'], ['van','фургон','🚐'], ['can','банка','🥫']]}],
+  [{fam:'og', words:[['dog','собака','🐶'], ['frog','лягушка','🐸'], ['log','бревно','🪵'], ['fog','туман','🌫️']]},
+   {fam:'ox', words:[['box','коробка','📦'], ['fox','лиса','🦊']]}],
+  [{fam:'en', words:[['hen','курица','🐔'], ['pen','ручка','🖊️'], ['ten','десять','10']]},
+   {fam:'ed', words:[['bed','кровать','🛏️'], ['red','красный','#ef4444'], ['sled','санки','🛷']]}],
+  [{fam:'ug', words:[['bug','жук','🐛'], ['hug','обнимашки','🤗'], ['mug','кружка','☕']]},
+   {fam:'un', words:[['sun','солнце','☀️'], ['run','бегать','🏃'], ['bun','булочка','🥯']]}],
+].map((fams, i) => fams.flatMap(f => f.words.map(x => ({...w(x), k: 'r:' + x[0], fam: f.fam, lesson: i}))));
+
+/* Разговор: вопрос и ответ. Открывается после темы after. Картинка подсказывает, какой ответ верный. */
+const DIALOGS = [
+  {after:'hello', title:'Знакомство', icon:'👋', set:[
+    ['What is your name?', 'Как тебя зовут?', 'My name is Ann', 'Меня зовут Аня', '👧'],
+    ['How old are you?', 'Сколько тебе лет?', 'I am six', 'Мне шесть', '6'],
+    ['How are you?', 'Как дела?', 'I am fine', 'Хорошо', '🙂'],
+    ['Good morning!', 'Доброе утро!', 'Good morning, mom!', 'Доброе утро, мама!', '🌅'],
+  ]},
+  {after:'colors', title:'Какого цвета?', icon:'🎨', set:[
+    ['What color is the sun?', 'Какого цвета солнце?', 'It is yellow', 'Жёлтое', '☀️'],
+    ['What color is the grass?', 'Какого цвета трава?', 'It is green', 'Зелёная', '🌿'],
+    ['What color is the sky?', 'Какого цвета небо?', 'It is blue', 'Синее', '🌌'],
+    ['What color is the apple?', 'Какого цвета яблоко?', 'It is red', 'Красное', '🍎'],
+  ]},
+  {after:'animals', title:'Кто это?', icon:'🐾', set:[
+    ['Is it a cat?', 'Это кошка?', 'Yes, it is', 'Да', '🐱'],
+    ['Is it a dog?', 'Это собака?', 'No, it is a cow', 'Нет, это корова', '🐮'],
+    ['What is it?', 'Что это?', 'It is a frog', 'Это лягушка', '🐸'],
+    ['Is it a bird?', 'Это птица?', 'No, it is a fish', 'Нет, это рыба', '🐟'],
+  ]},
+  {after:'numbers', title:'Сколько?', icon:'🔢', set:[
+    ['How many apples?', 'Сколько яблок?', 'Three apples', 'Три яблока', '🍎🍎🍎'],
+    ['How many cats?', 'Сколько кошек?', 'Two cats', 'Две кошки', '🐱🐱'],
+    ['How many balls?', 'Сколько мячей?', 'Four balls', 'Четыре мяча', '⚽⚽⚽⚽'],
+    ['How many stars?', 'Сколько звёзд?', 'One star', 'Одна звезда', '⭐'],
+  ]},
+  {after:'family', title:'Кто это?', icon:'👨‍👩‍👧', set:[
+    ['Who is this?', 'Кто это?', 'This is my mom', 'Это моя мама', '👩'],
+    ['Who is she?', 'Кто она?', 'She is my sister', 'Это моя сестра', '👧'],
+    ['Who is he?', 'Кто он?', 'He is my grandpa', 'Это мой дедушка', '👴'],
+    ['Do you have a brother?', 'У тебя есть брат?', 'Yes, I do', 'Да, есть', '👦'],
+  ]},
+  {after:'food', title:'Что ты любишь?', icon:'🍰', set:[
+    ['Do you like cake?', 'Ты любишь торт?', 'Yes, I like cake', 'Да, я люблю торт', '🍰'],
+    ['What do you want?', 'Что ты хочешь?', 'I want milk, please', 'Я хочу молока, пожалуйста', '🥛'],
+    ['Are you hungry?', 'Ты голодный?', 'Yes, I want soup', 'Да, я хочу суп', '🍲'],
+    ['Here is your bread', 'Вот твой хлеб', 'Thank you!', 'Спасибо!', '🍞'],
+  ]},
+  {after:'feelings', title:'Как дела?', icon:'😊', set:[
+    ['How are you today?', 'Как ты сегодня?', 'I am happy', 'Мне весело', '😊'],
+    ['Why are you sad?', 'Почему ты грустишь?', 'My dog is sick', 'Моя собака заболела', '🐶🤒'],
+    ['Are you tired?', 'Ты устал?', 'Yes, I want to sleep', 'Да, я хочу спать', '😴'],
+    ['Are you scared?', 'Тебе страшно?', 'No, I am fine', 'Нет, всё хорошо', '🙂'],
+  ]},
+].map((d, i) => ({...d, set: d.set.map(([q, qru, en, ru, pic]) => ({...w([en, ru, pic]), k: 'd:' + i + ':' + en, q, qru}))}));
+
+/* Истории: несколько картинок с подписями и вопросы по ним. Открывается после темы after.
+   В вопросе варианты — слова из уроков, первый вариант — верный. */
+const STORIES = [
+  {after:'food', title:'My dog', ru:'Моя собака', icon:'🐶', pages:[
+    ['This is my dog', 'Это моя собака', '🐶'],
+    ['My dog is black', 'Моя собака чёрная', '🐕‍🦺'],
+    ['My dog can run', 'Моя собака умеет бегать', '🐕💨'],
+    ['My dog likes milk', 'Моя собака любит молоко', '🐶🥛'],
+  ], quiz:[
+    ['What color is the dog?', 'Какого цвета собака?', ['black', 'white', 'red']],
+    ['What can the dog do?', 'Что умеет собака?', ['run', 'swim', 'sing']],
+    ['What does the dog like?', 'Что любит собака?', ['milk', 'cake', 'cheese']],
+  ]},
+  {after:'weather', title:'A cold day', ru:'Холодный день', icon:'🌧️', pages:[
+    ['It is cold', 'Холодно', '🥶'],
+    ['I see the rain', 'Я вижу дождь', '🌧️'],
+    ['I put on my coat', 'Я надеваю пальто', '🧥'],
+    ['I put on my scarf', 'Я надеваю шарф', '🧣'],
+  ], quiz:[
+    ['What do I see?', 'Что я вижу?', ['rain', 'snow', 'sun']],
+    ['What do I put on first?', 'Что я надеваю сначала?', ['coat', 'dress', 'T-shirt']],
+    ['Is it hot or cold?', 'Жарко или холодно?', ['cold', 'hot']],
+  ]},
+  {after:'zoo', title:'At the zoo', ru:'В зоопарке', icon:'🦁', pages:[
+    ['I go to the zoo by bus', 'Я еду в зоопарк на автобусе', '🚌'],
+    ['I see a monkey', 'Я вижу обезьяну', '🐵'],
+    ['The monkey can dance', 'Обезьяна умеет танцевать', '🐵💃'],
+    ['I am happy', 'Мне весело', '😊'],
+  ], quiz:[
+    ['How do I go to the zoo?', 'На чём я еду в зоопарк?', ['bus', 'plane', 'boat']],
+    ['What animal do I see?', 'Какое животное я вижу?', ['monkey', 'lion', 'snake']],
+    ['What can the monkey do?', 'Что умеет обезьяна?', ['dance', 'swim', 'read']],
+    ['How do I feel?', 'Как я себя чувствую?', ['happy', 'sad', 'angry']],
+  ]},
+  {after:'time', title:'My morning', ru:'Моё утро', icon:'🌄', pages:[
+    ['Good morning, mom!', 'Доброе утро, мама!', '👩🌄'],
+    ['I eat bread and cheese', 'Я ем хлеб и сыр', '🍞🧀'],
+    ['I go to school', 'Я иду в школу', '🏫'],
+    ['I read a book', 'Я читаю книгу', '📖'],
+  ], quiz:[
+    ['What do I eat?', 'Что я ем?', ['bread', 'cake', 'soup']],
+    ['Where do I go?', 'Куда я иду?', ['school', 'house', 'sea']],
+    ['What do I read?', 'Что я читаю?', ['book', 'pen', 'bag']],
+  ]},
+  {after:'adjectives', title:'My birthday', ru:'Мой день рождения', icon:'🎂', pages:[
+    ['Today is Sunday', 'Сегодня воскресенье', '🎉'],
+    ['I am seven!', 'Мне семь!', '🎂'],
+    ['I see a big cake', 'Я вижу большой торт', '🍰'],
+    ['Mom and dad sing', 'Мама и папа поют', '👩👨🎤'],
+  ], quiz:[
+    ['What day is it?', 'Какой сегодня день?', ['Sunday', 'Monday', 'Friday']],
+    ['How old am I?', 'Сколько мне лет?', ['seven', 'five', 'ten']],
+    ['What is big?', 'Что большое?', ['cake', 'car', 'ball']],
+    ['Who sings?', 'Кто поёт?', ['mom', 'baby', 'teacher']],
+  ]},
+].map((st, i) => ({...st,
+  pages: st.pages.map(([en, ru, e]) => ({en, ru, e})),
+  quiz: st.quiz.map(([q, qru, opts]) => ({q, qru, opts: opts.map(o => WORDS[o]), x: WORDS[opts[0]]})),
+}));
 
 /* Задания, которые произносятся по-русски перед английским словом (один раз за урок на каждый вид задания).
    Ключ — вид задания в игре. После изменения пересоберите озвучку: node tools/build-audio.mjs */
@@ -162,6 +306,16 @@ const HINTS = {
   g_y:     'Картинка и слово совпадают? Отвечай: да или нет.',
   g_m:     'Найди все пары как можно быстрее!',
   duel:    'Дуэль! Отвечай правильно и быстро.',
+  rintro:  'Учимся читать! Посмотри, как пишется слово, и послушай.',
+  rread:   'Прочитай слово сам и найди картинку.',
+  rfirst:  'Какая буква стоит в начале? Выбери её.',
+  rhear:   'Послушай и найди слово, которое услышал.',
+  dintro:  'Послушай вопрос и ответ.',
+  dpick:   'Послушай вопрос и выбери правильный ответ.',
+  dbuild:  'Собери ответ из слов.',
+  spage:   'Послушай историю. Нажимай «Дальше», чтобы листать.',
+  squiz:   'А теперь вопросы по истории!',
+  speak:   'Нажми на микрофон и скажи сам. Потом послушай себя.',
 };
 
 /* Похвала в конце урока: 3, 2 и 1 звезда */

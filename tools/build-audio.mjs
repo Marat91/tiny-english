@@ -22,7 +22,7 @@ console.log(`Голоса: ${VOICE} / ${RU_VOICE}`);
 
 const chars = readdirSync(join(root, 'js/characters')).filter(f => f.endsWith('.js')).map(f => 'js/characters/' + f);
 const code = ['js/data.js', 'js/characters.js', ...chars].map(f => readFileSync(join(root, f), 'utf8')).join('\n;\n');
-const { LETTERS, TOPICS, PRAISE, CHARACTERS, HINTS, PHRASES, EXTRA } = vm.runInNewContext(code + '\n;({LETTERS, TOPICS, PRAISE, CHARACTERS, HINTS, PHRASES, EXTRA})');
+const { LETTERS, TOPICS, PRAISE, CHARACTERS, HINTS, PHRASES, EXTRA, READ, DIALOGS, STORIES } = vm.runInNewContext(code + "\n;({LETTERS, TOPICS, PRAISE, CHARACTERS, HINTS, PHRASES, EXTRA, READ, DIALOGS, STORIES})");
 
 const texts = new Set();
 // буквы диктуем строчными: одиночную заглавную голос читает как «capital A»
@@ -31,13 +31,25 @@ TOPICS.forEach(t => t.lessons.flat().forEach(w => texts.add(w.en)));
 PHRASES.forEach(ph => ph.set.forEach(x => texts.add(x.en)));
 PRAISE.forEach(p => texts.add(p.en));
 EXTRA.forEach(t => texts.add(t));
+READ.flat().forEach(x => texts.add(x.en));
+DIALOGS.forEach(d => d.set.forEach(x => { texts.add(x.q); texts.add(x.en) }));
+STORIES.forEach(s => { s.pages.forEach(pg => texts.add(pg.en)); s.quiz.forEach(q => texts.add(q.q)) });
 CHARACTERS.forEach(c => texts.add(c.hello));
 ["Let's play!"].forEach(t => texts.add(t));
 
+/* Уже записанное берём из прошлой сборки, если голоса и настройки те же (FULL=1 — перезаписать всё) */
+const META = {VOICE, RU_VOICE, RATE, RU_RATE, BITRATE, LEAD};
+let old = {};
+try {
+  const prev = vm.runInNewContext(readFileSync(join(root, 'audio/pack.js'), 'utf8').replace(/window\./g, 'this.') + ';this', {});
+  if (!process.env.FULL && JSON.stringify(prev.AUDIO_META) === JSON.stringify(META)) old = prev.AUDIO_PACK || {};
+} catch(e){}
 const tmp = mkdtempSync(join(tmpdir(), 'tiny-audio-'));
 const pack = {};
+let reused = 0;
 let n = 0, bytes = 0;
 for (const text of texts){
+  if (old[text.toLowerCase()]){ pack[text.toLowerCase()] = old[text.toLowerCase()]; reused++; continue }
   const aiff = join(tmp, 'a.aiff'), m4a = join(tmp, 'a.m4a');
   execFileSync('say', ['-v', VOICE, '-r', RATE, '-o', aiff, LEAD + text]);
   execFileSync('afconvert', [aiff, '-o', m4a, '-f', 'm4af', '-d', 'aac', '-b', BITRATE, '-c', '1']);
@@ -47,6 +59,9 @@ for (const text of texts){
 }
 // задания по-русски
 for (const [type, text] of Object.entries(HINTS)){
+  // ru#… — по какому тексту записано задание
+  if (old['ru:' + type] && old['ru#' + type] === text){ pack['ru:' + type] = old['ru:' + type]; pack['ru#' + type] = text; reused++; continue }
+  pack['ru#' + type] = text;
   const aiff = join(tmp, 'r.aiff'), m4a = join(tmp, 'r.m4a');
   execFileSync('say', ['-v', RU_VOICE, '-r', RU_RATE, '-o', aiff, LEAD + text]);
   execFileSync('afconvert', [aiff, '-o', m4a, '-f', 'm4af', '-d', 'aac', '-b', BITRATE, '-c', '1']);
@@ -57,5 +72,6 @@ for (const [type, text] of Object.entries(HINTS)){
 rmSync(tmp, { recursive: true, force: true });
 
 writeFileSync(join(root, 'audio/pack.js'),
-  '/* Сгенерировано tools/build-audio.mjs — не править вручную */\nwindow.AUDIO_PACK = ' + JSON.stringify(pack) + ';\n');
+  '/* Сгенерировано tools/build-audio.mjs — не править вручную */\nwindow.AUDIO_META = ' + JSON.stringify(META) + ';\nwindow.AUDIO_PACK = ' + JSON.stringify(pack) + ';\n');
+console.log(`Новых записей: ${n}, взято из прошлой сборки: ${reused}`);
 console.log(`Записано ${n} фраз, ${(bytes / 1024).toFixed(0)} КБ звука → audio/pack.js`);

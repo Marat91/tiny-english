@@ -45,7 +45,8 @@ const topicDone = (p, t) => t.lessons.every((_, i) => p.stars[t.id + ':' + i] > 
 /* Первые пять тем открываются по одной после уроков алфавита, дальше — после предыдущей темы */
 const topicOpen = (p, ti) => abcDone(p) >= Math.min(ti + 1, ABC.length) && (ti < 5 || topicDone(p, TOPICS[ti - 1]));
 function isLocked(p, L){
-  if (L.kind === 'phrase') return !(topicOpen(p, L.ti) && topicDone(p, L.t));
+  if (L.kind === 'phrase' || L.kind === 'dialog' || L.kind === 'story') return !(topicOpen(p, L.ti) && topicDone(p, L.t));
+  if (L.kind === 'read') return abcDone(p) < ABC.length || (L.i > 0 && !(p.stars['rd:' + (L.i - 1)] > 0));
   if (L.kind === 'exam') return L.t ? !(topicOpen(p, L.ti) && topicDone(p, L.t)) : abcDone(p) < ABC.length;
   if (L.kind === 'abc') return L.i > 0 && !(p.stars['abc:' + (L.i - 1)] > 0);
   return !topicOpen(p, L.ti) || (L.i > 0 && !(p.stars[L.t.id + ':' + (L.i - 1)] > 0));
@@ -58,7 +59,12 @@ const ALL = [
     {id: t.id + ':x', kind: 'exam', t, ti, set: t.lessons.flat()},
   ]),
   ...PHRASES.map((ph, i) => { const ti = TOPICS.findIndex(t => t.id === ph.topic); return {id: 'ph:' + i, kind: 'phrase', i, ph, t: TOPICS[ti], ti, set: ph.set} }),
+  ...READ.map((set, i) => ({id: 'rd:' + i, kind: 'read', i, set})),
+  ...DIALOGS.map((d, i) => { const ti = TOPICS.findIndex(t => t.id === d.after); return {id: 'dl:' + i, kind: 'dialog', i, d, t: TOPICS[ti], ti, set: d.set} }),
+  ...STORIES.map((st, i) => { const ti = TOPICS.findIndex(t => t.id === st.after); return {id: 'st:' + i, kind: 'story', i, st, t: TOPICS[ti], ti, set: st.quiz.map(q => q.x)} }),
 ];
+/* Уроки, слова из которых не попадают в повторение */
+const noReview = L => L.kind !== 'abc' && L.kind !== 'word';
 const plural = (n, one, few, many) => { const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many };
 
 /* ---------- повторение: когда какое слово показывать снова ---------- */
@@ -71,7 +77,7 @@ TOPICS.forEach(t => t.lessons.flat().forEach(x => { ITEMS[revKey(x)] = {x, t} })
 function seedRev(p){
   const m = revOf(p).m, d = dayNo(); let added = 0;
   /* по 10 в день, чтобы не вывалить на ребёнка сразу всё пройденное */
-  ALL.forEach(L => { if (L.kind !== 'exam' && L.kind !== 'phrase' && p.stars[L.id] > 0) L.set.forEach(x => { const k = revKey(x); if (!m[k]) m[k] = [0, d + Math.floor(added++ / 10)] }) });
+  ALL.forEach(L => { if (!noReview(L) && p.stars[L.id] > 0) L.set.forEach(x => { const k = revKey(x); if (!m[k]) m[k] = [0, d + Math.floor(added++ / 10)] }) });
   if (added) saveRev(p);
 }
 function grade(p, x, ok){
@@ -171,6 +177,16 @@ function lessonCard(p, L){
       <div class="ls phr">${esc(L.ph.pat.replace('…', ''))}<span>${pic(L.set[0])}</span></div>
       <div class="meta"><span class="num">💬 Фразы</span>${locked ? '<span class="st">🔒</span>' : starsHTML(st)}</div>
     </button>`;
+  if (L.kind === 'read')
+    return `<button class="lcard c${(L.i + 1) % 6} ${locked ? 'locked' : ''}" data-id="${L.id}">
+      <div class="ls phr">${[...new Set(L.set.map(x => '-' + x.fam))].join(' ')}<span>${L.set.slice(0, 2).map(pic).join('')}</span></div>
+      <div class="meta"><span class="num">📖 Чтение ${L.i + 1}</span>${locked ? '<span class="st">🔒</span>' : starsHTML(st)}</div>
+    </button>`;
+  if (L.kind === 'dialog' || L.kind === 'story')
+    return `<button class="lcard c${(L.i + 4) % 6} ${locked ? 'locked' : ''}" data-id="${L.id}">
+      <div class="ls phr">${esc(L.kind === 'story' ? L.st.title : L.d.title)}<span>${L.kind === 'story' ? L.st.icon : L.d.icon}</span></div>
+      <div class="meta"><span class="num">${L.kind === 'story' ? '📚 История' : '🗨️ Разговор'}</span>${locked ? '<span class="st">🔒</span>' : starsHTML(st)}</div>
+    </button>`;
   const face = L.kind === 'abc' ? `<div class="ls">${L.set.map(x => x.u).join('')}</div>`
                                 : `<div class="ls pics">${L.set.slice(0, 5).map(pic).join('')}</div>`;
   return `<button class="lcard c${L.i % 6} ${locked ? 'locked' : ''}" data-id="${L.id}">
@@ -228,6 +244,9 @@ function home(){
       ${ALL.filter(L => L.id.startsWith('abc:')).map(L => lessonCard(p, L)).join('')}
       <button class="lcard" id="abc"><div class="ls">🔤</div><div class="meta"><span class="num">Все буквы</span><span class="st">🔊</span></div></button>
     </div>
+    ${done >= ABC.length ? `<h3 class="sec">📖 Учимся читать</h3>
+      <div class="grid">${ALL.filter(L => L.kind === 'read').map(L => lessonCard(p, L)).join('')}</div>`
+      : `<div class="locked-topic"><span>📖 Учимся читать</span><small>🔒 откроется после всего алфавита</small></div>`}
     ${TOPICS.map((tp, ti) => {
       if (topicOpen(p, ti)) return `<h3 class="sec">${tp.icon} ${tp.title}</h3>
         <div class="grid">${ALL.filter(L => L.t === tp).map(L => lessonCard(p, L)).join('')}</div>`;
@@ -385,9 +404,24 @@ function startLesson(L){
   let listen = shuffle([...set, ...set]);
   for (let k = 0; k < 30 && listen.some((x, j) => j && x === listen[j - 1]); k++) listen = shuffle(listen);
   const T = L.kind === 'abc' ? ['intro', 'listen', 'missing', 'pairs'] : ['wintro', 'wlisten', 'wread', 'wpairs'];
-  const steps = L.kind === 'phrase' ? [
+  const fam = x => set.filter(o => o.fam === x.fam);
+  const steps = L.kind === 'read' ? [
+    ...set.map(x => ({t: 'rintro', x})),
+    ...shuffle(set).map(x => ({t: 'rread', x})),
+    ...shuffle(set).map(x => ({t: 'rfirst', x})),
+    ...shuffle(set).slice(0, 4).map(x => ({t: 'rhear', x, pool: fam(x).length >= 3 ? fam(x) : set})),
+  ] : L.kind === 'dialog' ? [
+    ...set.map(x => ({t: 'dintro', x})),
+    ...shuffle(set).map(x => ({t: 'dpick', x})),
+    ...shuffle(set).slice(0, 2).map(x => ({t: 'speak', x})),
+    ...shuffle(set).map(x => ({t: 'dbuild', x})),
+  ] : L.kind === 'story' ? [
+    ...L.st.pages.map((pg, i) => ({t: 'spage', pg, i, st: L.st})),
+    ...L.st.quiz.map(q => ({t: 'squiz', q, x: q.x, pool: q.opts})),
+  ] : L.kind === 'phrase' ? [
     ...set.map(x => ({t: 'pintro', x})),
     ...shuffle(set).map(x => ({t: 'plisten', x})),
+    ...shuffle(set).slice(0, 2).map(x => ({t: 'speak', x})),
     ...shuffle(set).map(x => ({t: 'pbuild', x})),
     ...shuffle(set).map(x => ({t: 'phear', x})),
   ] : [
@@ -395,9 +429,10 @@ function startLesson(L){
     ...listen.map(x => ({t: T[1], x})),
     ...shuffle(set).map(x => ({t: T[2], x})),
     ...(L.kind === 'word' ? shuffle(set).filter(canBuild).map(x => ({t: 'wbuild', x, model: true})) : []),   // собрать слово по образцу
+    ...(L.kind === 'word' ? [{t: 'speak', x: pick(set)}] : []),                                               // сказать слово самому
     {t: T[3], set},
   ];
-  const pool = L.kind === 'phrase' ? set : L.kind === 'abc' ? LETTERS.slice(0, ABC_RANGES[L.i][1]) : L.t.lessons.slice(0, L.i + 1).flat();
+  const pool = L.kind === 'phrase' || L.kind === 'read' || L.kind === 'dialog' ? set : L.kind === 'story' ? [] : L.kind === 'abc' ? LETTERS.slice(0, ABC_RANGES[L.i][1]) : L.t.lessons.slice(0, L.i + 1).flat();
   S = {L, mode: 'lesson', steps, pos: 0, mistakes: 0, pool, missed: new Set()};
   step();
 }
@@ -572,17 +607,181 @@ STEPS.pintro = ({x}) => {
   task('pintro', x.en);
 };
 
+/* ---------- учимся читать ---------- */
+const readWord = x => `<span>${esc(x.en.slice(0, -x.fam.length))}</span><b>${esc(x.fam)}</b>`;
+STEPS.rintro = ({x}) => {
+  frame(`
+    <p class="task">Читаем! Нажимай и слушай 👂</p>
+    <div class="bigem sm" id="em">${pic(x)}</div>
+    <p class="bigword read" id="bw">${readWord(x)}</p>
+    <p class="ruhint">${x.ru}</p>
+    <div class="row"><button class="btn round ghost" id="snd">🔊</button><button class="btn" id="go">Дальше →</button></div>`);
+  $('#em').onclick = $('#bw').onclick = $('#snd').onclick = () => say(x.en);
+  $('#go').onclick = advance;
+  task('rintro', x.en);
+};
+/* Слово без звука: ребёнок читает сам и находит картинку */
+STEPS.rread = ({x}) => {
+  frame(`
+    <p class="task">Прочитай и найди картинку</p>
+    <p class="bigword read">${readWord(x)}</p>
+    ${optsHTML(x, pic)}`);
+  wireOptions(x, () => { later(() => say(x.en), 300); later(advance, 1500) });
+  task('rread');
+};
+/* Первая буква: картинка и окончание, нужно подставить начало */
+STEPS.rfirst = ({x}) => {
+  const head = x.en.slice(0, -x.fam.length), right = {...x, k: head};
+  const others = shuffle([...new Set([...S.pool.map(o => o.en.slice(0, -o.fam.length)), ...'bcdfhmnprst'])].filter(h => h !== head)).slice(0, 3);
+  const gap = filled => `<u>${filled ? esc(head) : '&nbsp;'}</u>${esc(x.fam)}`;
+  frame(`
+    <p class="task">Какая буква в начале?</p>
+    <div class="bigem" id="em">${pic(x)}</div>
+    <div class="gap" id="gap">${gap(false)}</div>
+    <p class="ruhint" style="margin:0">${x.ru}</p>
+    <div class="opts">${shuffle([head, ...others]).map(h => `<button class="opt" data-k="${esc(h)}"><span class="lo">${esc(h)}</span></button>`).join('')}</div>`);
+  $('#em').onclick = () => say(x.en);
+  wireOptions(right, () => { $('#gap').innerHTML = gap(true); later(() => say(x.en), 300); later(advance, 1600) });
+  task('rfirst', x.en);
+};
+STEPS.rhear = ({x}) => {
+  frame(`
+    ${helper('Послушай и найди слово')}
+    <div class="center" style="margin-top:10px"><button class="btn big-round" id="snd">🔊</button></div>
+    ${optsHTML(x, o => esc(o.en), 'word')}`);
+  $('#snd').onclick = () => say(x.en);
+  wireOptions(x, () => later(advance, 900));
+  task('rhear', x.en);
+};
+
+/* ---------- разговор: вопрос и ответ ---------- */
+const qBubble = x => `<div class="talk"><span class="who">${myPetHTML(me(), 'small')}</span><button class="bubble q" id="dq">${esc(x.q)}<small>${esc(x.qru)}</small></button></div>`;
+STEPS.dintro = ({x}) => {
+  frame(`
+    <p class="task">Вопрос и ответ 💬</p>
+    ${qBubble(x)}
+    <div class="bigem sm" id="em">${pic(x)}</div>
+    <div class="talk me"><button class="bubble a" id="da">${esc(x.en)}<small>${esc(x.ru)}</small></button><span class="who">${av(me())}</span></div>
+    <div class="row"><button class="btn round ghost" id="snd">🔊</button><button class="btn" id="go">Дальше →</button></div>`);
+  $('#dq').onclick = () => say(x.q);
+  $('#da').onclick = $('#em').onclick = () => say(x.en);
+  $('#snd').onclick = () => say(x.q, 500, x.en);
+  $('#go').onclick = advance;
+  task('dintro', x.q, 500, x.en);
+};
+STEPS.dpick = ({x}) => {
+  frame(`
+    <p class="task">Что ответить?</p>
+    ${qBubble(x)}
+    <div class="bigem sm">${pic(x)}</div>
+    ${optsHTML(x, o => esc(o.en), 'word phr')}`);
+  $('#dq').onclick = () => say(x.q);
+  wireOptions(x, () => { later(() => say(x.en), 300); later(advance, 1700) });
+  task('dpick', x.q);
+};
+
+/* ---------- истории ---------- */
+STEPS.spage = ({pg, i, st}) => {
+  frame(`
+    ${i === 0 ? `<p class="task">📚 ${esc(st.title)} <small class="ruhint">${esc(st.ru)}</small></p>` : '<p class="task">📚</p>'}
+    <div class="page">
+      <div class="bigem" id="em">${pg.e}</div>
+      <button class="bigword phr story" id="bw">${esc(pg.en)}</button>
+      <p class="ruhint">${esc(pg.ru)}</p>
+    </div>
+    <div class="dots">${st.pages.map((_, j) => `<i class="${j === i ? 'on' : ''}"></i>`).join('')}</div>
+    <div class="row"><button class="btn round ghost" id="snd">🔊</button><button class="btn" id="go">Дальше →</button></div>`);
+  $('#em').onclick = $('#bw').onclick = $('#snd').onclick = () => say(pg.en);
+  $('#go').onclick = advance;
+  task('spage', pg.en);
+};
+STEPS.squiz = ({q, x}) => {
+  frame(`
+    <p class="task">Вопрос по истории</p>
+    <button class="bubble q wide" id="dq">${esc(q.q)}<small>${esc(q.qru)}</small></button>
+    ${optsHTML(x, o => `${pic(o)}<small class="cap">${esc(o.en)}</small>`)}`);
+  $('#dq').onclick = () => say(q.q);
+  wireOptions(x, () => { later(() => say(x.en), 300); later(advance, 1500) });
+  task('squiz', q.q);
+};
+
+/* ---------- скажи сам: запись голоса и сравнение с образцом ---------- */
+let micOff = false;
+const canRec = () => !micOff && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+STEPS.speak = st => {
+  const x = st.x, rec0 = canRec();
+  frame(`
+    <p class="task">Скажи сам 🗣️</p>
+    ${x.q ? qBubble(x) : ''}
+    <div class="bigem sm" id="em">${pic(x)}</div>
+    <p class="bigword phr" id="bw">${esc(x.en)}</p>
+    <p class="ruhint" style="margin-bottom:8px">${x.ru}</p>
+    <div class="row">
+      <button class="btn round ghost" id="snd">🔊</button>
+      ${rec0 ? '<button class="btn round mic" id="mic">🎙️</button><button class="btn round ghost" id="mine" disabled>▶️</button>' : ''}
+    </div>
+    <p class="sub" id="mh">${rec0 ? 'Нажми 🎙️ и скажи. Нажми ещё раз, когда закончишь' : 'Послушай 🔊 и скажи вслух'}</p>
+    <button class="btn" id="go">${rec0 ? 'Дальше →' : 'Я сказал! →'}</button>`);
+  let rec = null, url = null, timer = 0;
+  const stop = () => { clearTimeout(timer); if (rec && rec.state === 'recording') rec.stop() };
+  const here = () => S && S.cur === st;
+  const playMine = () => {
+    if (!url) return;
+    hush();
+    const a = new Audio(url);
+    a.onended = () => { if (here()) setTimeout(() => { if (here()) say(x.en) }, 300) };
+    const pr = a.play(); if (pr && pr.catch) pr.catch(() => {});
+  };
+  const x0 = $('#x').onclick;
+  $('#x').onclick = () => { stop(); x0() };
+  $('#em').onclick = $('#bw').onclick = $('#snd').onclick = () => say(x.en);
+  if (x.q) $('#dq').onclick = () => say(x.q);
+  $('#go').onclick = () => { stop(); advance() };
+  if (rec0){
+    const mic = $('#mic'), mine = $('#mine'), mh = $('#mh');
+    mine.onclick = playMine;
+    mic.onclick = async () => {
+      if (rec && rec.state === 'recording') return stop();
+      hush();
+      let stream;
+      try { stream = await navigator.mediaDevices.getUserMedia({audio: true}) }
+      catch(e){
+        micOff = true;                                     // больше не спрашиваем до перезапуска игры
+        mic.remove(); mine.remove(); mh.textContent = 'Микрофон недоступен — просто скажи вслух 🙂'; $('#go').textContent = 'Я сказал! →';
+        return;
+      }
+      if (!here()){ stream.getTracks().forEach(t => t.stop()); return }
+      const chunks = [];
+      try { rec = new MediaRecorder(stream) } catch(e){ stream.getTracks().forEach(t => t.stop()); micOff = true; mh.textContent = 'Запись не работает здесь — скажи вслух 🙂'; return }
+      rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data) };
+      rec.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+        if (!here()) return;
+        mic.classList.remove('on');
+        if (url) URL.revokeObjectURL(url);
+        url = URL.createObjectURL(new Blob(chunks, {type: rec.mimeType || 'audio/mp4'}));
+        mine.disabled = false; mh.textContent = 'Это ты! А потом — как говорит учитель 👂';
+        petReact('ok'); playMine();
+      };
+      rec.start(); mic.classList.add('on'); mh.textContent = 'Говори! 🔴 Нажми ещё раз, когда закончишь';
+      timer = setTimeout(stop, 4000);
+    };
+  }
+  task('speak', x.en);
+};
+
 /* ---------- собери слово из букв или фразу из слов ---------- */
 const canBuild = x => { const n = x.en.replace(/[^a-z]/gi, '').length; return n >= 2 && n <= 8 };
-STEPS.wbuild = STEPS.pbuild = st => {
-  const x = st.x, words = st.t === 'pbuild';
+STEPS.wbuild = STEPS.pbuild = STEPS.dbuild = st => {
+  const x = st.x, words = st.t !== 'wbuild';
   const parts = words ? x.en.split(' ') : [...x.en];
   const need = parts.map((s, i) => ({s, i})).filter(o => words || /[a-z]/i.test(o.s));     // пробелы и дефисы стоят на месте
   let tiles = shuffle(need.map(o => o.s));
   for (let k = 0; k < 20 && need.length > 1 && tiles.every((s, i) => s === need[i].s); k++) tiles = shuffle(tiles);
   let pos = 0, missed = false;
   frame(`
-    <p class="task">${words ? 'Собери фразу' : 'Собери слово'}</p>
+    <p class="task">${st.t === 'dbuild' ? 'Собери ответ' : words ? 'Собери фразу' : 'Собери слово'}</p>
+    ${x.q ? `<div class="bubble q" id="dq">${esc(x.q)}</div>` : ''}
     <div class="bigem sm" id="em">${pic(x)}</div>
     <p class="ruhint" style="margin-bottom:6px">${x.ru}</p>
     ${st.model ? `<p class="model">${esc(x.en)}</p>` : ''}
@@ -590,6 +789,7 @@ STEPS.wbuild = STEPS.pbuild = st => {
       ? `<span class="sl" data-i="${i}"></span>` : `<span class="fx">${s === ' ' ? '&nbsp;' : esc(s)}</span>`).join('')}</div>
     <div class="tiles ${words ? 'w' : ''}">${tiles.map(s => `<button class="tile" data-s="${esc(s)}">${esc(s)}</button>`).join('')}</div>`);
   $('#em').onclick = () => say(x.en);
+  if ($('#dq')) $('#dq').onclick = () => say(x.q);
   $$('.tile').forEach(b => b.onclick = () => {
     if (b.classList.contains('used') || pos >= need.length) return;
     const want = need[pos];
@@ -606,7 +806,7 @@ STEPS.wbuild = STEPS.pbuild = st => {
     if (S.onAnswer) S.onAnswer(S.cur, !missed);
     later(() => say(x.en), 300); later(advance, 1800);
   });
-  task(st.t, x.en);
+  x.q ? task(st.t, x.q) : task(st.t, x.en);
 };
 STEPS.wpairs = ({set}) => pairsGame('Найди пары: картинка и слово',
   set.flatMap(x => [{k: x.en, s: pic(x)}, {k: x.en, s: esc(x.en), txt: true}]), set.length);
@@ -647,7 +847,7 @@ function finish(){
     stars = mode === 'exam' ? (S.mistakes <= 1 ? 3 : S.mistakes <= 3 ? 2 : 1) : (S.mistakes <= 1 ? 3 : S.mistakes <= 4 ? 2 : 1);
     p.stars[L.id] = Math.max(p.stars[L.id] || 0, stars);
     got = stars * (mode === 'exam' ? 3 : 2); dayMark(p, 'l');
-    if (mode === 'lesson' && L.kind === 'phrase'){}                 // фразы в повторение не попадают
+    if (mode === 'lesson' && noReview(L)){}                        // фразы, чтение, разговоры и истории в повторение не попадают
     else if (mode === 'lesson') L.set.forEach(x => { const k = revKey(x); if (!m[k] || S.missed.has(k)) m[k] = [0, tomorrow] });
     else S.missed.forEach(k => { m[k] = [0, tomorrow] });   // в испытании ошибся — слово вернётся в повторение
     head = PRAISE[3 - stars].en; sub = PRAISE[3 - stars].ru;
