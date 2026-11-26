@@ -9,12 +9,20 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const VOICE = process.env.VOICE || 'Samantha', RATE = process.env.RATE || '150';
+/* Берём самый разборчивый из установленных голосов. Голоса Premium / Enhanced звучат гораздо чище —
+   скачать: Системные настройки → Универсальный доступ → Устная речь → Системный голос → Управлять голосами. */
+const installed = execFileSync('say', ['-v', '?'], {encoding: 'utf8'}).split('\n').map(l => l.split(/\s{2,}/)[0].trim()).filter(Boolean);
+const best = prefs => prefs.find(v => installed.includes(v));
+const VOICE = process.env.VOICE || best(['Ava (Premium)', 'Zoe (Premium)', 'Evan (Premium)', 'Ava (Enhanced)', 'Samantha (Enhanced)', 'Allison (Enhanced)', 'Samantha']);
+const RU_VOICE = process.env.RU_VOICE || best(['Milena (Premium)', 'Katya (Premium)', 'Milena (Enhanced)', 'Katya (Enhanced)', 'Yuri (Enhanced)', 'Milena']);
+const RATE = process.env.RATE || '130', RU_RATE = process.env.RU_RATE || '150', BITRATE = process.env.BITRATE || '48000';
+/* короткая тишина в начале: на телефонах и Bluetooth-наушниках иначе «съедается» первый звук слова */
+const LEAD = '[[slnc 120]] ';
+console.log(`Голоса: ${VOICE} / ${RU_VOICE}`);
 
 const chars = readdirSync(join(root, 'js/characters')).filter(f => f.endsWith('.js')).map(f => 'js/characters/' + f);
 const code = ['js/data.js', 'js/characters.js', ...chars].map(f => readFileSync(join(root, f), 'utf8')).join('\n;\n');
 const { LETTERS, TOPICS, PRAISE, CHARACTERS, HINTS, PHRASES, EXTRA } = vm.runInNewContext(code + '\n;({LETTERS, TOPICS, PRAISE, CHARACTERS, HINTS, PHRASES, EXTRA})');
-const RU_VOICE = process.env.RU_VOICE || 'Milena', RU_RATE = process.env.RU_RATE || '170';
 
 const texts = new Set();
 // буквы диктуем строчными: одиночную заглавную голос читает как «capital A»
@@ -31,8 +39,8 @@ const pack = {};
 let n = 0, bytes = 0;
 for (const text of texts){
   const aiff = join(tmp, 'a.aiff'), m4a = join(tmp, 'a.m4a');
-  execFileSync('say', ['-v', VOICE, '-r', RATE, '-o', aiff, text]);
-  execFileSync('afconvert', [aiff, '-o', m4a, '-f', 'm4af', '-d', 'aac', '-b', '32000', '-c', '1']);
+  execFileSync('say', ['-v', VOICE, '-r', RATE, '-o', aiff, LEAD + text]);
+  execFileSync('afconvert', [aiff, '-o', m4a, '-f', 'm4af', '-d', 'aac', '-b', BITRATE, '-c', '1']);
   const buf = readFileSync(m4a);
   pack[text.toLowerCase()] = buf.toString('base64');
   n++; bytes += buf.length;
@@ -40,8 +48,8 @@ for (const text of texts){
 // задания по-русски
 for (const [type, text] of Object.entries(HINTS)){
   const aiff = join(tmp, 'r.aiff'), m4a = join(tmp, 'r.m4a');
-  execFileSync('say', ['-v', RU_VOICE, '-r', RU_RATE, '-o', aiff, text]);
-  execFileSync('afconvert', [aiff, '-o', m4a, '-f', 'm4af', '-d', 'aac', '-b', '32000', '-c', '1']);
+  execFileSync('say', ['-v', RU_VOICE, '-r', RU_RATE, '-o', aiff, LEAD + text]);
+  execFileSync('afconvert', [aiff, '-o', m4a, '-f', 'm4af', '-d', 'aac', '-b', BITRATE, '-c', '1']);
   const buf = readFileSync(m4a);
   pack['ru:' + type] = buf.toString('base64');
   n++; bytes += buf.length;

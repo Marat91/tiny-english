@@ -88,6 +88,30 @@ const TOPICS = [
     [['eleven','одиннадцать','11'], ['twelve','двенадцать','12'], ['thirteen','тринадцать','13'], ['fourteen','четырнадцать','14'], ['fifteen','пятнадцать','15']],
     [['sixteen','шестнадцать','16'], ['seventeen','семнадцать','17'], ['eighteen','восемнадцать','18'], ['nineteen','девятнадцать','19'], ['twenty','двадцать','20']],
   ]},
+  {id:'fruits', title:'Фрукты и овощи', icon:'🍓', lessons:[
+    [['grape','виноград','🍇'], ['pear','груша','🍐'], ['strawberry','клубника','🍓'], ['watermelon','арбуз','🍉']],
+    [['carrot','морковка','🥕'], ['potato','картошка','🥔'], ['tomato','помидор','🍅'], ['cucumber','огурец','🥒']],
+  ]},
+  {id:'feelings', title:'Чувства', icon:'😊', lessons:[
+    [['happy','весёлый','😊'], ['sad','грустный','😢'], ['angry','сердитый','😠'], ['tired','уставший','😩']],
+    [['scared','испуганный','😱'], ['hungry','голодный','😋'], ['sick','больной','🤒'], ['sleepy','сонный','🥱']],
+  ]},
+  {id:'transport', title:'Транспорт', icon:'🚌', lessons:[
+    [['bus','автобус','🚌'], ['plane','самолёт','✈️'], ['boat','лодка','⛵'], ['bike','велосипед','🚲']],
+    [['ship','корабль','🚢'], ['helicopter','вертолёт','🚁'], ['rocket','ракета','🚀'], ['taxi','такси','🚕']],
+  ]},
+  {id:'zoo', title:'Зоопарк', icon:'🦁', lessons:[
+    [['lion','лев','🦁'], ['tiger','тигр','🐯'], ['monkey','обезьяна','🐵'], ['elephant','слон','🐘']],
+    [['giraffe','жираф','🦒'], ['zebra','зебра','🦓'], ['snake','змея','🐍'], ['crocodile','крокодил','🐊']],
+  ]},
+  {id:'nature', title:'Природа', icon:'🌳', lessons:[
+    [['flower','цветок','🌸'], ['tree','дерево','🌳'], ['grass','трава','🌱'], ['sea','море','🌊']],
+    [['mountain','гора','⛰️'], ['river','река','🏞️'], ['star','звезда','⭐'], ['moon','луна','🌙']],
+  ]},
+  {id:'jobs', title:'Профессии', icon:'🧑‍🚒', lessons:[
+    [['doctor','врач','🧑‍⚕️'], ['cook','повар','🧑‍🍳'], ['farmer','фермер','🧑‍🌾'], ['pilot','лётчик','🧑‍✈️']],
+    [['police officer','полицейский','👮'], ['firefighter','пожарный','🧑‍🚒'], ['artist','художник','🧑‍🎨'], ['singer','певец','🧑‍🎤']],
+  ]},
 ].map(t => ({...t, lessons: t.lessons.map(set => set.map(w))}));
 
 /* Фразы: короткие предложения из уже знакомых слов. Урок открывается, когда пройдена его тема.
@@ -101,6 +125,17 @@ const PHRASES = [
   {topic:'food',    pat:'I like …',     set:[['I like milk','Я люблю молоко'], ['I like bread','Я люблю хлеб'], ['I like cheese','Я люблю сыр'], ['I like cake','Я люблю торт']]},
   {topic:'toys',    pat:'I see a …',    set:[['I see a ball','Я вижу мяч'], ['I see a car','Я вижу машину'], ['I see a robot','Я вижу робота'], ['I see a train','Я вижу поезд']]},
   {topic:'verbs',   pat:'I can …',      set:[['I can run','Я умею бегать'], ['I can swim','Я умею плавать'], ['I can sing','Я умею петь'], ['I can dance','Я умею танцевать']]},
+  {topic:'body',    pat:'Touch your …', set:[['Touch your nose','Потрогай нос'], ['Touch your ear','Потрогай ухо'], ['Touch your mouth','Потрогай рот'], ['Touch your eye','Потрогай глаз']]},
+  {topic:'clothes', pat:'Put on your …', set:[['Put on your cap','Надень кепку'], ['Put on your coat','Надень пальто'], ['Put on your scarf','Надень шарф'], ['Put on your socks','Надень носки']]},
+  {topic:'home',    pat:'Where is the …', set:[['Where is the lamp','Где лампа?'], ['Where is the clock','Где часы?'], ['Where is the sofa','Где диван?'], ['Where is the chair','Где стул?']]},
+  {topic:'school',  pat:'Give me a …',  set:[['Give me a book','Дай мне книгу'], ['Give me a pen','Дай мне ручку'], ['Give me a pencil','Дай мне карандаш'], ['Give me a ruler','Дай мне линейку']]},
+  {topic:'weather', pat:'I see a …',    set:[['I see a cloud','Я вижу облако'], ['I see a rainbow','Я вижу радугу'], ['I see the sun','Я вижу солнце'], ['I see the snow','Я вижу снег']]},
+  {topic:'fruits',  pat:'I want a …',   set:[['I want a pear','Я хочу грушу'], ['I want a carrot','Я хочу морковку'], ['I want a tomato','Я хочу помидор'], ['I want a strawberry','Я хочу клубнику']]},
+  {topic:'feelings',pat:'I am …',       set:[['I am happy','Мне весело'], ['I am sad','Мне грустно'], ['I am tired','Я устал'], ['I am hungry','Я голодный']]},
+  {topic:'transport',pat:'I go by …',   set:[['I go by bus','Я еду на автобусе'], ['I go by bike','Я еду на велосипеде'], ['I go by boat','Я плыву на лодке'], ['I go by plane','Я лечу на самолёте']]},
+  {topic:'zoo',     pat:'Look at the …', set:[['Look at the lion','Посмотри на льва'], ['Look at the monkey','Посмотри на обезьяну'], ['Look at the elephant','Посмотри на слона'], ['Look at the giraffe','Посмотри на жирафа']]},
+  {topic:'nature',  pat:'I like the …', set:[['I like the sea','Я люблю море'], ['I like the flower','Мне нравится цветок'], ['I like the moon','Мне нравится луна'], ['I like the river','Мне нравится река']]},
+  {topic:'jobs',    pat:'I want to be a …', set:[['I want to be a doctor','Я хочу быть врачом'], ['I want to be a pilot','Я хочу быть лётчиком'], ['I want to be a cook','Я хочу быть поваром'], ['I want to be a singer','Я хочу быть певцом']]},
 ].map(ph => ({...ph, set: ph.set.map(([en, ru]) => { const wn = en.split(' ').pop(); return {...WORDS[wn], k: en, en, ru, w: wn} })}));
 
 /* Задания, которые произносятся по-русски перед английским словом (один раз за урок на каждый вид задания).
