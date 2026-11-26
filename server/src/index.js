@@ -96,17 +96,17 @@ const invite = (env, code) => `https://t.me/${env.BOT_USERNAME}?start=grp_${code
 
 /* Настройки и список групп пользователя */
 async function state(env, id){
-  const me = await env.DB.prepare(`SELECT u.remind_on, u.remind_hour, u.public, u.weekly_on, CASE WHEN ph.img IS NOT NULL THEN '/photo/' || ph.key ELSE u.photo END photo
+  const me = await env.DB.prepare(`SELECT u.remind_on, u.remind_hour, u.public, u.weekly_on, u.wotd_on, CASE WHEN ph.img IS NOT NULL THEN '/photo/' || ph.key ELSE u.photo END photo
       FROM users u LEFT JOIN user_photos ph ON ph.tg_id = u.tg_id WHERE u.tg_id = ?`).bind(id).first();
   const gifts = (await env.DB.prepare('SELECT id, to_pid pid, from_name, kind, val, card FROM gifts WHERE to_tg = ? AND taken = 0 ORDER BY id LIMIT 20').bind(id).all()).results;
-  const groups = (await env.DB.prepare(`SELECT g.code, g.name, g.owner, (SELECT COUNT(*) FROM members x WHERE x.code = g.code) n, (SELECT total FROM funds f WHERE f.code = g.code) fund
+  const groups = (await env.DB.prepare(`SELECT g.code, g.name, g.owner, g.hw, (SELECT COUNT(*) FROM members x WHERE x.code = g.code) n, (SELECT total FROM funds f WHERE f.code = g.code) fund
       FROM groups g JOIN members m ON m.code = g.code WHERE m.tg_id = ? ORDER BY g.created`).bind(id).all()).results;
   return {
     remind_on: !!me.remind_on, remind_hour: me.remind_hour, public: !!me.public, photo: me.photo || null,
-    weekly_on: me.weekly_on !== 0, chat: !!env.ANTHROPIC_API_KEY, hear: !!env.AI,
+    weekly_on: me.weekly_on !== 0, wotd_on: !!me.wotd_on, chat: !!env.ANTHROPIC_API_KEY, hear: !!env.AI,
     pics: Object.fromEntries((await env.DB.prepare('SELECT pid, key FROM profile_photos WHERE tg_id = ?').bind(id).all()).results.map(r => [r.pid, '/photo/' + r.key])),
     gifts: gifts.map(g => ({ id: g.id, pid: g.pid, from: g.from_name, kind: g.kind, val: g.val, card: g.card })),
-    groups: groups.map(g => ({ code: g.code, name: g.name, members: g.n, mine: g.owner === id, fund: g.fund || 0, invite: invite(env, g.code) })),
+    groups: groups.map(g => ({ code: g.code, name: g.name, members: g.n, mine: g.owner === id, fund: g.fund || 0, invite: invite(env, g.code), hw: parseHw(g.hw) })),
   };
 }
 
@@ -323,8 +323,9 @@ async function api(path, body, env){
     const week = Array.isArray(body.week) ? JSON.stringify(body.week.slice(0, 8).map(k => ({
       n: str(k && k.n, 20), d: int(k && k.d, 0, 7, 0), a: int(k && k.a, 0, 99999, 0), w: int(k && k.w, 0, 9999, 0),
       s: int(k && k.s, 0, 9999, 0), t: int(k && k.t, 0, 9999, 0), h: Array.isArray(k && k.h) ? k.h.slice(0, 3).map(x => str(x, 30)) : [] }))) : null;
-    stmts.push(env.DB.prepare('UPDATE users SET tz = ?, last_active = COALESCE(?, last_active), week = COALESCE(?, week) WHERE tg_id = ?')
-      .bind(int(body.tz, -840, 720, -180), lastActive, week, u.id));
+    const wotd = Array.isArray(body.wotd) && body.wotd.length ? JSON.stringify(body.wotd.slice(0, 16).map(x => ({ en: str(x && x.en, 30), ru: str(x && x.ru, 40), e: str(x && x.e, 16) }))) : null;
+    stmts.push(env.DB.prepare('UPDATE users SET tz = ?, last_active = COALESCE(?, last_active), week = COALESCE(?, week), wotd = COALESCE(?, wotd) WHERE tg_id = ?')
+      .bind(int(body.tz, -840, 720, -180), lastActive, week, wotd, u.id));
     await env.DB.batch(stmts);
     await env.DB.prepare('DELETE FROM profile_photos WHERE tg_id = ?1 AND pid NOT IN (SELECT pid FROM profiles WHERE tg_id = ?1)').bind(u.id).run();   // фото удалённых учеников
     // фото обновляем раз в сутки; если его пока нет (скрыто настройками Telegram) — проверяем чаще, вдруг открыли
@@ -352,8 +353,12 @@ async function api(path, body, env){
     }
   }
   else if (path === '/api/settings'){
-    await env.DB.prepare('UPDATE users SET remind_on = ?, remind_hour = ?, public = ?, weekly_on = ? WHERE tg_id = ?')
-      .bind(body.remind_on ? 1 : 0, int(body.remind_hour, 0, 23, 18), body.public === false ? 0 : 1, body.weekly_on === false ? 0 : 1, u.id).run();
+    await env.DB.prepare('UPDATE users SET remind_on = ?, remind_hour = ?, public = ?, weekly_on = ?, wotd_on = ? WHERE tg_id = ?')
+      .bind(body.remind_on ? 1 : 0, int(body.remind_hour, 0, 23, 18), body.public === false ? 0 : 1, body.weekly_on === false ? 0 : 1, body.wotd_on ? 1 : 0, u.id).run();
+  }
+  else if (path === '/api/hw'){
+    const r = await hwApi(env, u, body);
+    if (r) return r;
   }
   else if (path === '/api/group'){
     const code = String(body.code || ''), name = str(body.name, 24).trim();
@@ -411,8 +416,8 @@ async function webhook(req, env){
       else reply = 'Вас вызвали на дуэль! ⚔️ Нажмите «Играть», затем «Игры» → «Дуэль» — вызов ждёт внизу экрана 👇';
     }
   } else if (text.startsWith('/stop')){
-    await env.DB.prepare('UPDATE users SET remind_on = 0, weekly_on = 0 WHERE tg_id = ?').bind(m.from.id).run();
-    reply = 'Напоминания и отчёты за неделю выключены. Включить обратно можно в игре: «Для родителей».';
+    await env.DB.prepare('UPDATE users SET remind_on = 0, weekly_on = 0, wotd_on = 0 WHERE tg_id = ?').bind(m.from.id).run();
+    reply = 'Напоминания, слово дня и отчёты выключены. Включить обратно можно в игре: «Для родителей».';
   } else {
     reply = 'Чтобы заниматься, нажми «Играть» 👇\nОтключить напоминания: /stop';
   }
@@ -437,6 +442,62 @@ async function remind(env, now){
     else if (r.status === 403) await env.DB.prepare('UPDATE users SET remind_on = 0 WHERE tg_id = ?').bind(u.tg_id).run();  // бота заблокировали
   }
   return sent;
+}
+
+/* Домашнее задание группы: {topics: [id темы], due: 'ГГГГ-ММ-ДД'}. Задаёт только владелец группы */
+function parseHw(v){
+  try { const h = JSON.parse(v); return h && Array.isArray(h.topics) && isDay(h.due) ? h : null } catch (e) { return null }
+}
+/* Вернёт ответ для list; для set и done — null (тогда api() ответит обычным состоянием со списком групп) */
+async function hwApi(env, u, body){
+  const code = String(body.code || '');
+  if (!GROUP_RE.test(code)) return json({ error: 'bad' }, 400);
+  const g = await env.DB.prepare('SELECT g.owner FROM groups g JOIN members m ON m.code = g.code WHERE g.code = ? AND m.tg_id = ?').bind(code, u.id).first();
+  if (!g) return json({ error: 'member' }, 403);
+  if (body.action === 'set'){
+    if (g.owner !== u.id) return json({ error: 'owner' }, 403);
+    const h = body.hw && Array.isArray(body.hw.topics) && isDay(body.hw.due)
+      ? JSON.stringify({ topics: body.hw.topics.slice(0, 6).map(t => str(t, 20)).filter(t => /^[a-z0-9]+$/.test(t)), due: body.hw.due }) : null;
+    await env.DB.batch([
+      env.DB.prepare('UPDATE groups SET hw = ? WHERE code = ?').bind(h, code),
+      env.DB.prepare('DELETE FROM hw_done WHERE code = ?').bind(code),
+    ]);
+    return null;
+  }
+  if (body.action === 'done'){
+    const pid = str(body.pid, 24);
+    if (!pid) return json({ error: 'pid' }, 400);
+    const done = JSON.stringify((Array.isArray(body.done) ? body.done : []).slice(0, 6).map(t => str(t, 20)));
+    await env.DB.prepare(`INSERT INTO hw_done (code, tg_id, pid, name, done) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(code, tg_id, pid) DO UPDATE SET name = excluded.name, done = excluded.done`).bind(code, u.id, pid, str(body.name, 20), done).run();
+    return json({ ok: true });
+  }
+  if (g.owner !== u.id) return json({ error: 'owner' }, 403);
+  const rows = (await env.DB.prepare('SELECT name, done FROM hw_done WHERE code = ? ORDER BY name LIMIT 100').bind(code).all()).results;
+  return json({ rows: rows.map(r => { let d = []; try { d = JSON.parse(r.done) } catch (e) {} return { name: r.name, done: d } }) });
+}
+
+/* Слово дня: в 8:00 по местному времени, тем, кто включил. Слова присылает игра (из тем, которые ребёнок сейчас учит) */
+async function wordOfDay(env, now){
+  const users = (await env.DB.prepare('SELECT tg_id, tz, wotd, wotd_sent FROM users WHERE wotd_on = 1 AND wotd IS NOT NULL').all()).results;
+  let sent = 0;
+  for (const u of users){
+    if (sent >= 30) break;
+    const local = new Date(now - u.tz * 60000), day = local.toISOString().slice(0, 10);
+    if (local.getUTCHours() !== 8 || u.wotd_sent === day) continue;
+    let list; try { list = JSON.parse(u.wotd) } catch (e) { continue }
+    if (!Array.isArray(list) || !list.length) continue;
+    const w = list[Math.floor(now / 864e5) % list.length];
+    const text = `📢 Слово дня
+
+${w.e} ${w.en} — ${w.ru}
+
+Скажи его вслух три раза, а вечером спроси у мамы или папы, помнят ли они 😉`;
+    const r = await tgApi(env, 'sendMessage', { chat_id: u.tg_id, text, reply_markup: playButton(env) });
+    sent++;
+    if (r.ok) await env.DB.prepare('UPDATE users SET wotd_sent = ? WHERE tg_id = ?').bind(day, u.tg_id).run();
+    else if (r.status === 403) await env.DB.prepare('UPDATE users SET wotd_on = 0, remind_on = 0, weekly_on = 0 WHERE tg_id = ?').bind(u.tg_id).run();
+  }
 }
 
 /* Турнир недели в группе: у всех одинаковые вопросы (их выбирает игра по коду группы и номеру недели),
@@ -574,7 +635,7 @@ export default {
       if (ph && req.method === 'GET') return await servePhoto(env, ph[1]);
       if (url.pathname === '/setup'){
         const r = await tgApi(env, 'setWebhook', { url: url.origin + '/tg', secret_token: await hookSecret(env), allowed_updates: ['message'] });
-        await tgApi(env, 'setMyCommands', { commands: [{ command: 'start', description: 'Открыть игру' }, { command: 'stop', description: 'Выключить напоминания и отчёты' }] });
+        await tgApi(env, 'setMyCommands', { commands: [{ command: 'start', description: 'Открыть игру' }, { command: 'stop', description: 'Выключить напоминания, слово дня и отчёты' }] });
         // заодно подтягиваем фото тем, у кого его ещё не проверяли (понемногу за раз)
         // ?recheck=1 — ещё раз проверить тех, у кого фото не нашлось
         const again = url.searchParams.get('recheck') === '1';
@@ -608,6 +669,7 @@ export default {
     ]).catch(e => console.error(e)));
     ctx.waitUntil(remind(env, event.scheduledTime));
     ctx.waitUntil(weekly(env, event.scheduledTime).catch(e => console.error(e)));
+    ctx.waitUntil(wordOfDay(env, event.scheduledTime).catch(e => console.error(e)));
     ctx.waitUntil(env.DB.prepare('DELETE FROM usage WHERE day < ?').bind(d3.slice(0, 10)).run().catch(e => console.error(e)));
     // турниры: храним только последние недели (номер недели считается с 1970 года)
     const oldWeek = Math.floor((Math.floor(event.scheduledTime / 864e5) - 4) / 7) - 8;

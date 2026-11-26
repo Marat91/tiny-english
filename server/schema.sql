@@ -11,7 +11,10 @@ CREATE TABLE IF NOT EXISTS users (
   photo         TEXT,                           -- ссылка на фото профиля Telegram
   weekly_on     INTEGER NOT NULL DEFAULT 1,     -- присылать ли отчёт за неделю
   week          TEXT,                           -- последняя сводка за неделю из игры (JSON)
-  week_sent     TEXT                            -- местная дата отправки последнего отчёта
+  week_sent     TEXT,                           -- местная дата отправки последнего отчёта
+  wotd_on       INTEGER NOT NULL DEFAULT 0,     -- слово дня от бота
+  wotd          TEXT,
+  wotd_sent     TEXT
 );
 CREATE TABLE IF NOT EXISTS profiles (
   tg_id   INTEGER NOT NULL,
@@ -26,7 +29,8 @@ CREATE TABLE IF NOT EXISTS profiles (
 CREATE TABLE IF NOT EXISTS families (
   code    TEXT PRIMARY KEY,
   owner   INTEGER NOT NULL,
-  created TEXT
+  created TEXT,
+  hw      TEXT                    -- домашнее задание: {"topics": [...], "due": "ГГГГ-ММ-ДД"}
 );
 CREATE INDEX IF NOT EXISTS users_family ON users(family);
 CREATE TABLE IF NOT EXISTS groups (
@@ -122,4 +126,10 @@ CREATE TABLE IF NOT EXISTS tours (
   code TEXT NOT NULL, week INTEGER NOT NULL, tg_id INTEGER NOT NULL, pid TEXT NOT NULL,
   name TEXT, avatar TEXT, score INTEGER NOT NULL DEFAULT 0, ms INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (code, week, tg_id, pid)
+);
+-- Домашнее задание: кто что сделал (сама домашка — в groups.hw, см. migrations/010_family.sql)
+CREATE TABLE IF NOT EXISTS hw_done (
+  code TEXT NOT NULL, tg_id INTEGER NOT NULL, pid TEXT NOT NULL,
+  name TEXT, done TEXT,
+  PRIMARY KEY (code, tg_id, pid)
 );

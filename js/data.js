@@ -197,8 +197,32 @@ const TOPICS = [
     [['princess','принцесса','👸'], ['prince','принц','🤴'], ['dragon','дракон','🐉'], ['castle','замок','🏰']],
     [['wizard','волшебник','🧙'], ['fairy','фея','🧚'], ['unicorn','единорог','🦄'], ['magic wand','волшебная палочка','🪄']],
   ]},
-  /* Праздничная тема: открыта во время новогоднего события (и потом — если её начали). См. NY ниже */
-  {id:'newyear', title:'Новый год', icon:'🎄', holiday:true, lessons:[
+  {id:'numbers3', title:'Числа до 100', icon:'💯', lessons:[
+    [['thirty','тридцать','30'], ['forty','сорок','40'], ['fifty','пятьдесят','50'], ['sixty','шестьдесят','60']],
+    [['seventy','семьдесят','70'], ['eighty','восемьдесят','80'], ['ninety','девяносто','90'], ['hundred','сто','100']],
+  ]},
+  {id:'ordinals', title:'Первый, второй', icon:'🥇', lessons:[
+    [['first','первый','🥇'], ['second','второй','🥈'], ['third','третий','🥉'], ['fourth','четвёртый','4️⃣']],
+    [['fifth','пятый','5️⃣'], ['sixth','шестой','6️⃣'], ['seventh','седьмой','7️⃣'], ['last','последний','🏁']],
+  ]},
+  {id:'routine', title:'Мой день', icon:'⏰', lessons:[
+    [['wake up','просыпаться','⏰'], ['brush teeth','чистить зубы','🪥'], ['get dressed','одеваться','👕'], ['have breakfast','завтракать','🥣']],
+    [['go to school','идти в школу','🏫'], ['do homework','делать уроки','📝'], ['take a bath','принимать ванну','🛁'], ['go to bed','ложиться спать','🛌']],
+  ]},
+  /* Праздничные темы стоят последними: открыты во время своего события (EVENTS ниже) и потом — если их начали */
+  {id:'halloween', title:'Хэллоуин', icon:'🎃', holiday:'halloween', lessons:[
+    [['ghost','привидение','👻'], ['witch','ведьма','🧙‍♀️'], ['bat','летучая мышь','🦇'], ['candy','конфета','🍬']],
+    [['mask','маска','🎭'], ['skeleton','скелет','💀'], ['broom','метла','🧹'], ['black cat','чёрная кошка','🐈‍⬛']],
+  ]},
+  {id:'spring', title:'Весна', icon:'🌸', holiday:'spring', lessons:[
+    [['nest','гнездо','🪹'], ['umbrella','зонтик','☂️'], ['puddle','лужа','💦'], ['blossom','цветение','🌸']],
+    [['sprout','росток','🌱'], ['snail','улитка','🐌'], ['raincoat','дождевик','🧥'], ['birdhouse','скворечник','🏡']],
+  ]},
+  {id:'camp', title:'Лагерь', icon:'🏕️', holiday:'summer', lessons:[
+    [['tent','палатка','⛺'], ['campfire','костёр','🔥'], ['map','карта','🗺️'], ['compass','компас','🧭']],
+    [['flashlight','фонарик','🔦'], ['canoe','каноэ','🛶'], ['fishing rod','удочка','🎣'], ['backpack','рюкзак','🎒']],
+  ]},
+  {id:'newyear', title:'Новый год', icon:'🎄', holiday:'ny', lessons:[
     [['Christmas tree','ёлка','🎄'], ['gift','подарок','🎁'], ['Santa','Дед Мороз','🎅'], ['snowman','снеговик','⛄']],
     [['snowflake','снежинка','❄️'], ['candle','свеча','🕯️'], ['bell','колокольчик','🔔'], ['reindeer','олень','🦌']],
   ]},
@@ -246,6 +270,10 @@ const PHRASES = [
   {topic:'wardrobe',pat:'Put on your …', set:[['Put on your gloves','Надень перчатки'], ['Put on your boots','Надень сапоги'], ['Put on your shorts','Надень шорты'], ['Put on your glasses','Надень очки']]},
   {topic:'space',   pat:'I fly to the …', set:[['I fly to the planet','Я лечу на планету'], ['I fly to the comet','Я лечу к комете'], ['I fly to the satellite','Я лечу к спутнику'], ['I fly to the UFO','Я лечу к НЛО']]},
   {topic:'fairytale',pat:'I am a …',    set:[['I am a princess','Я принцесса'], ['I am a prince','Я принц'], ['I am a wizard','Я волшебник'], ['I am a fairy','Я фея']]},
+  {topic:'ordinals', pat:'I am …',      set:[['I am first','Я первый'], ['I am second','Я второй'], ['I am third','Я третий'], ['I am last','Я последний']]},
+  {topic:'halloween', pat:'Boo! …',     set:[['I am a ghost','Я привидение'], ['I am a witch','Я ведьма'], ['I see a bat','Я вижу летучую мышь'], ['I like candy','Я люблю конфеты']]},
+  {topic:'spring',  pat:'Spring! …',    set:[['I see a nest','Я вижу гнездо'], ['I see a snail','Я вижу улитку'], ['I have an umbrella','У меня есть зонтик'], ['Jump in the puddle','Прыгай в лужу']]},
+  {topic:'camp',    pat:'Where is the …', set:[['Where is the map','Где карта?'], ['Where is the compass','Где компас?'], ['I have a flashlight','У меня есть фонарик'], ['I have a backpack','У меня есть рюкзак']]},
   {topic:'directions', pat:'Look …',    set:[['Look up','Посмотри вверх'], ['Look down','Посмотри вниз'], ['Look left','Посмотри налево'], ['Look right','Посмотри направо']]},
 ].map(ph => ({...ph, set: ph.set.map(([en, ru]) => { const wn = en.split(' ').pop(); return {...WORDS[wn], k: en, en, ru, w: wn} })}));
 
@@ -387,6 +415,17 @@ const STORIES = [
     ['Who has a gift?', 'У кого подарок?', ['Santa', 'teacher', 'baby']],
     ['What is the gift?', 'Какой подарок?', ['teddy bear', 'robot', 'kite']],
   ]},
+  {after:'routine', title:'My day', ru:'Мой день', icon:'⏰', pages:[
+    ['I wake up at seven', 'Я просыпаюсь в семь', '⏰'],
+    ['I brush my teeth', 'Я чищу зубы', '🪥'],
+    ['I have breakfast', 'Я завтракаю', '🥣'],
+    ['I go to school at eight', 'В восемь я иду в школу', '🏫'],
+    ['At night I go to bed', 'Ночью я ложусь спать', '🛌'],
+  ], quiz:[
+    ['What do I do at seven?', 'Что я делаю в семь?', ['wake up', 'go to bed', 'do homework']],
+    ['What do I do at eight?', 'Что я делаю в восемь?', ['go to school', 'take a bath', 'get dressed']],
+    ['What do I do at night?', 'Что я делаю ночью?', ['go to bed', 'have breakfast', 'wake up']],
+  ]},
   {after:'adjectives', title:'My birthday', ru:'Мой день рождения', icon:'🎂', pages:[
     ['Today is Sunday', 'Сегодня воскресенье', '🎉'],
     ['I am seven!', 'Мне семь!', '🎂'],
@@ -406,6 +445,22 @@ const STORIES = [
 /* Новогоднее событие: с 1 декабря по 10 января. Адвент-календарь — окошко на каждый день декабря,
    открывается, если в этот день пройден урок. В магазине появляются праздничные вещи (ny:true в SHOP). */
 const NY = {from: [11, 1], to: [0, 10], bones: 5, big: {10: 'snowman', 20: 'xbell', 31: 'xtree'}};
+/* Праздники: когда идут (месяц с нуля, число). Новогодний календарь — только у ny */
+const EVENTS = {
+  ny:        {from: [11, 1], to: [0, 10], title: 'Новый год', icon: '🎄'},
+  halloween: {from: [9, 25], to: [10, 2], title: 'Хэллоуин', icon: '🎃'},
+  spring:    {from: [2, 1],  to: [3, 30], title: 'Весна', icon: '🌸'},
+  summer:    {from: [5, 1],  to: [7, 31], title: 'Лагерь', icon: '🏕️'},
+};
+/* Задания недели: каждую неделю — 4 из этого списка, у всех одинаковые. За все четыре — WEEK_PRIZE косточек */
+const QUESTS = [
+  {id:'l', n:3,  icon:'📘', ru:'Пройди 3 урока'},          {id:'g', n:3, icon:'🎮', ru:'Сыграй в игры 3 раза'},
+  {id:'r', n:2,  icon:'🔁', ru:'Повтори слова 2 раза'},     {id:'w', n:10, icon:'🆕', ru:'Выучи 10 новых слов'},
+  {id:'d', n:4,  icon:'🔥', ru:'Занимайся 4 разных дня'},   {id:'l', n:5, icon:'📚', ru:'Пройди 5 уроков'},
+];
+const WEEK_PRIZE = 40;
+/* Сад питомца: растение за каждую пройденную тему и росток за каждые 10 выученных слов */
+const GARDEN = ['🌳', '🌲', '🌴', '🌻', '🌷', '🌹', '🌵', '🍄', '🎋', '🌾', '🌺', '🪴'];
 
 /* «Питомец, сделай!»: команды на слух. Если перед командой не сказали please — делать не надо. */
 const COMMANDS = [
@@ -448,6 +503,34 @@ const GRAMMAR = [
     ['These are cats', 'Это кошки', '🐱🐱🐱', 'These are', ['This is', 'These are']],
     ['This is a bird', 'Это птица', '🐦', 'This is', ['This is', 'These are']],
     ['These are birds', 'Это птицы', '🐦🐦', 'These are', ['This is', 'These are']],
+  ]},
+  {after:'verbs', title:"can / can't", icon:'🐦', set:[
+    ['I can swim', 'Я умею плавать', '🏊', 'can', ['can', "can't"]],
+    ["I can't fly", 'Я не умею летать', '🙅', "can't", ['can', "can't"]],
+    ['A bird can fly', 'Птица умеет летать', '🐦', 'can', ['can', "can't"]],
+    ["A fish can't run", 'Рыба не умеет бегать', '🐟', "can't", ['can', "can't"]],
+    ['A dog can run', 'Собака умеет бегать', '🐶', 'can', ['can', "can't"]],
+    ["A cat can't read", 'Кошка не умеет читать', '🐱', "can't", ['can', "can't"]],
+  ]},
+  {after:'verbs', title:'Что делаю сейчас', icon:'🏃', set:[
+    ['I am running', 'Я бегу', '🏃', 'running', ['run', 'running']],
+    ['She is swimming', 'Она плавает', '🏊‍♀️', 'swimming', ['swim', 'swimming']],
+    ['He is reading', 'Он читает', '📚', 'reading', ['read', 'reading']],
+    ['We are dancing', 'Мы танцуем', '💃🕺', 'dancing', ['dance', 'dancing']],
+    ['The baby is sleeping', 'Малыш спит', '😴', 'sleeping', ['sleep', 'sleeping']],
+    ['I am eating', 'Я ем', '🍽️', 'eating', ['eat', 'eating']],
+  ]},
+  {after:'food', title:'Do you like…?', icon:'😋', set:[
+    ['I like milk', 'Я люблю молоко', '🥛', 'like', ['like', "don't like"]],
+    ["I don't like soup", 'Я не люблю суп', '🍲', "don't like", ['like', "don't like"]],
+    ['Yes, I do', 'Да, люблю', '😋', 'do', ['do', "don't"]],
+    ["No, I don't", 'Нет, не люблю', '🙅‍♂️', "don't", ['do', "don't"]],
+  ]},
+  {after:'adjectives', title:'a big red ball', icon:'🎈', set:[
+    ['a big red ball', 'большой красный мяч', '⚽', 'big red', ['big red', 'red big']],
+    ['a small blue car', 'маленькая синяя машинка', '🚙', 'small blue', ['small blue', 'blue small']],
+    ['a long green snake', 'длинная зелёная змея', '🐍', 'long green', ['long green', 'green long']],
+    ['a happy yellow duck', 'весёлая жёлтая утка', '🐥', 'happy yellow', ['happy yellow', 'yellow happy']],
   ]},
 ].map((g, i) => ({...g, set: g.set.map(([en, ru, pic, gap, opts]) => ({...w([en, ru, pic]), k: 'g:' + i + ':' + en, gap, opts}))}));
 
@@ -593,6 +676,8 @@ const HINTS = {
   spage:   'Послушай историю. Нажимай «Дальше», чтобы листать.',
   squiz:   'А теперь вопросы по истории!',
   speak:   'Нажми на микрофон и скажи сам. Потом послушай себя.',
+  hw:      'Домашнее задание от учителя. Пройди эти темы до срока.',
+  quests:  'Задания недели! Выполни все четыре и получи большой приз.',
   trace:   'Обведи букву пальцем. Веди по серой линии.',
   gintro:  'Посмотри и послушай, как меняется слово.',
   gfill:   'Какое слово пропущено? Выбери его.',
@@ -682,6 +767,13 @@ const SHOP = [
   {id:'xbell',   type:'fun',  en:'bell',       ru:'колокольчик', icon:'🔔', price:20, pos:[70,80,.9], ny:true},
   {id:'xcandle', type:'fun',  en:'candle',     ru:'свеча',    icon:'🕯️', price:15,  pos:[12,40,.8],  ny:true},
   {id:'snowman', type:'fun',  en:'snowman',    ru:'снеговик', icon:'⛄', price:40,  yard:true,       ny:true},
+  {id:'hpump',   type:'fun',  en:'jack-o-lantern', ru:'тыква-фонарь', icon:'🎃', price:30, pos:[56,1,1.1],  ev:'halloween'},
+  {id:'hghost',  type:'fun',  en:'ghost',      ru:'привидение', icon:'👻', price:25,  pos:[80,70,1],   ev:'halloween'},
+  {id:'hweb',    type:'fun',  en:'spider web', ru:'паутинка', icon:'🕸️', price:15,  pos:[3,80,1.2],  ev:'halloween'},
+  {id:'sblossom',type:'fun',  en:'blossom',    ru:'цветущая ветка', icon:'🌸', price:20, pos:[70,80,1], ev:'spring'},
+  {id:'snest',   type:'fun',  en:'nest',       ru:'гнездо',   icon:'🪹', price:25,  pos:[12,72,1],   ev:'spring'},
+  {id:'ccampfire',type:'fun', en:'campfire',   ru:'костёр',   icon:'🔥', price:35,  yard:true,       ev:'summer'},
+  {id:'ccanoe',  type:'fun',  en:'canoe',      ru:'каноэ',    icon:'🛶', price:45,  yard:true,       ev:'summer'},
   {id:'xsanta',  type:'fun',  en:'Santa',      ru:'Дед Мороз', icon:'🎅', price:80, pos:[78,22,1.3], ny:true},
 ];
 /* Еда: f — сытость, m — настроение, cap — выше какого уровня сытость не поднимет */

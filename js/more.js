@@ -57,6 +57,7 @@ function moreHTML(p){
     ${knownWordsOf(p).length >= 4 ? card('msleep', '🎧', 'Слушаем перед сном') : ''}
     ${knownWordsOf(p).length >= 4 ? card('mprint', '🖨️', 'Карточки') : ''}
     ${groups ? card('mtour', '🏆', 'Турнир недели') : ''}
+    ${groups ? card('mhw', '📚', 'Домашка') : ''}
   </div>`;
 }
 function wireMore(){
@@ -64,6 +65,7 @@ function wireMore(){
   if ($('#msleep')) $('#msleep').onclick = sleepMode;
   if ($('#mprint')) $('#mprint').onclick = () => printScreen();
   if ($('#mtour')) $('#mtour').onclick = () => tourScreen();
+  if ($('#mhw')) $('#mhw').onclick = () => hwScreen();
 }
 
 /* ================= Игра «Спаси снеговика» ================= */
@@ -277,4 +279,112 @@ async function tourScreen(code){
   if (!r || !r.rows) return $('#tb').innerHTML = '<p class="sub">Таблица турнира появится, когда сервер обновят.</p>';
   $('#tb').innerHTML = `${r.rows.length ? duelTable(r.rows.map((x, i) => ({...x, name: (i === 0 ? '👑 ' : '') + x.name})), 10) : '<p class="sub">Пока никто не сыграл — будь первым!</p>'}
     ${r.last ? `<p class="sub" style="margin-top:12px">Победитель прошлой недели: 👑 ${esc(r.last.name)} (${r.last.score} из 10)</p>` : ''}`;
+}
+
+/* ================= Открыть тему раньше времени ================= */
+const UNLOCK_PRICE = 30;
+function unlockTopic(id){
+  const p = me(), t = TOPICS.find(x => x.id === id); if (!t) return;
+  askBox(`<p>Открыть тему «${esc(t.title)}» ${t.icon} сейчас за ${UNLOCK_PRICE} 🦴?</p>`, 'Открыть', 'Не сейчас', () => {
+    if (!spend(p, UNLOCK_PRICE, 'u')){ buzz(); return home() }
+    p.open = [...(p.open || []), id]; save(); fanfare(); topicScreen(id);
+  });
+}
+
+/* ================= Праздники, кроме Нового года ================= */
+const itemEv = i => i.ev || (i.ny ? 'ny' : '');
+function evBanner(p){
+  const ev = curEvents().find(e => e !== 'ny'); if (!ev) return '';
+  const t = TOPICS.find(x => x.holiday === ev);
+  return `<button class="review ny" id="evb" data-t="${t.id}"><span class="rv-ic">${EVENTS[ev].icon}</span><span class="rv-t"><b>${EVENTS[ev].title}!</b><small>Праздничная тема и украшения в магазине — только сейчас</small></span><span class="rv-go">▶</span></button>`;
+}
+
+/* ================= Задания недели ================= */
+function weekQ(p){
+  const w = weekNo();
+  if (!p.wq || p.wq.w !== w) p.wq = {w, l: 0, g: 0, r: 0, w0: learnedN(p), days: [], got: false};
+  return p.wq;
+}
+function questMark(p, k){ const q = weekQ(p); q[k] = (q[k] || 0) + 1; if (!q.days.includes(dayNo())) q.days.push(dayNo()) }
+function questsOf(){
+  const rnd = seeded('quests:' + weekNo()), out = [];
+  for (const q of [...QUESTS].sort(() => rnd() - .5)) if (out.length < 4 && !out.some(o => o.id === q.id)) out.push(q);
+  return out;
+}
+function questProgress(p, q){
+  const s = weekQ(p);
+  return Math.min(q.n, q.id === 'w' ? Math.max(0, learnedN(p) - s.w0) : q.id === 'd' ? s.days.length : s[q.id] || 0);
+}
+function questsHTML(p){
+  const list = questsOf(), s = weekQ(p), all = list.every(q => questProgress(p, q) >= q.n);
+  return `<div class="daily quests ${s.got ? 'done' : ''}"><div class="dl-t"><b>Задания недели</b>
+    <div class="dl-q">${list.map(q => { const n = questProgress(p, q); return `<span class="${n >= q.n ? 'ok' : ''}">${n >= q.n ? '✅' : q.icon} ${q.ru} <i>${n}/${q.n}</i></span>` }).join('')}</div></div>
+    <button class="chest ${all && !s.got ? 'ready' : ''}" id="wq"><i>${s.got ? '🏆' : '🎯'}</i><small>${s.got ? 'получено' : all ? `+${WEEK_PRIZE} 🦴` : 'до пн'}</small></button></div>`;
+}
+function wireQuests(){
+  const b = $('#wq'); if (!b) return;
+  b.onclick = () => {
+    const p = me(), s = weekQ(p);
+    if (s.got || !questsOf().every(q => questProgress(p, q) >= q.n)){ buzz(); b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake'); return }
+    s.got = true; earn(p, WEEK_PRIZE); save(); fanfare(); say('Excellent!'); home();
+  };
+}
+
+/* ================= Сад питомца ================= */
+function gardenHTML(p){
+  const trees = TOPICS.filter(t => !t.holiday && topicDone(p, t)).map((t, i) => GARDEN[i % GARDEN.length]);
+  const sprouts = Math.min(30, Math.floor(learnedN(p) / 10));
+  return `<div class="garden"><small>сад · ${trees.length} ${plural(trees.length, 'тема', 'темы', 'тем')}, ${learnedN(p)} слов</small>
+    <div>${trees.join('')}${'🌱'.repeat(sprouts)}${!trees.length && !sprouts ? '<em>Учи слова — и здесь вырастет сад 🌱</em>' : ''}</div></div>`;
+}
+
+/* ================= Слово дня от бота: какие слова отправлять ================= */
+/* Слова двух последних открытых тем — их ребёнок учит сейчас */
+function wordsOfDay(){
+  const p = me(); if (!p) return [];
+  const open = TOPICS.filter((t, ti) => !t.holiday && topicOpen(p, ti)).slice(-2);
+  return open.flatMap(t => t.lessons.flat()).slice(0, 16).map(x => ({en: x.en, ru: x.ru, e: x.e || x.n || '🎨'}));
+}
+
+/* ================= Домашнее задание в группе (учитель — владелец группы) ================= */
+const hwOf = g => g && g.hw && g.hw.due >= new Date().toISOString().slice(0, 10) ? g.hw : null;
+const hwTopics = hw => TOPICS.filter(t => hw.topics.includes(t.id));
+const hwDone = (p, hw) => hwTopics(hw).filter(t => topicDone(p, t)).map(t => t.id);
+function hwBanner(){
+  const p = me(), g = online() && srv && (srv.groups || []).find(x => hwOf(x) && hwDone(p, x.hw).length < x.hw.topics.length && !x.mine);
+  if (!g) return '';
+  return `<button class="review focus" id="hwb"><span class="rv-ic">📚</span><span class="rv-t"><b>Домашка от «${esc(g.name)}»</b><small>${hwTopics(g.hw).map(t => t.icon).join(' ')} до ${g.hw.due.slice(8, 10)}.${g.hw.due.slice(5, 7)}</small></span><span class="rv-go">▶</span></button>`;
+}
+async function hwScreen(code, edit){
+  const p = me(), groups = (srv && srv.groups) || [];
+  if (!groups.length) return home();
+  const g = groups.find(x => x.code === code) || groups.find(x => hwOf(x)) || groups[0], hw = hwOf(g);
+  if (hw) post('/api/hw', {action: 'done', code: g.code, pid: p.id, name: p.name, done: hwDone(p, hw)});
+  const sel = new Set(edit || (hw ? hw.topics : []));
+  const days = Array.from({length: 7}, (_, i) => new Date(Date.now() + (i + 1) * 864e5).toISOString().slice(0, 10));
+  render('hw', `
+    <div class="lbar"><button class="x" id="x">←</button><h2 style="margin:0;flex:1">📚 Домашнее задание</h2><span style="width:46px"></span></div>
+    ${groups.length > 1 ? `<div class="tabs">${groups.map(x => `<button class="tab ${x === g ? 'on' : ''}" data-c="${x.code}">${esc(x.name)}</button>`).join('')}</div>` : `<p class="sub">Группа «${esc(g.name)}»</p>`}
+    ${hw ? `<div class="stage"><p class="task">До ${hw.due.slice(8, 10)}.${hw.due.slice(5, 7)}: пройти темы</p>
+      <div class="board">${hwTopics(hw).map(t => `<button class="brow tap" data-topic="${t.id}"><span class="bav">${t.icon}</span><span class="bn">${esc(t.title)}</span><span class="bs">${topicDone(p, t) ? '✅' : '▶'}</span></button>`).join('')}</div></div>`
+      : '<p class="sub">Сейчас домашнего задания нет.</p>'}
+    ${g.mine ? `<h3 class="sec">✏️ Задать домашку <small>вы владелец группы</small></h3>
+      <div class="row picks">${TOPICS.filter(t => !t.holiday).map(t => `<button class="chip pickp ${sel.has(t.id) ? 'on' : ''}" data-pick="${t.id}">${t.icon} ${esc(t.title)}</button>`).join('')}</div>
+      <p class="sub" style="margin:12px 0 6px">Срок</p>
+      <select id="due" class="sel">${days.map(d => `<option value="${d}" ${hw && hw.due === d ? 'selected' : ''}>${d.slice(8, 10)}.${d.slice(5, 7)}</option>`).join('')}</select>
+      <div class="row" style="margin-top:12px"><button class="btn" id="save">Задать</button>${hw ? '<button class="btn ghost" id="clear">Отменить</button>' : ''}</div>
+      <h3 class="sec">👀 Кто сделал</h3><div id="who"><p class="sub">Загружаю…</p></div>` : ''}`);
+  $('#x').onclick = home;
+  $$('[data-c]').forEach(b => b.onclick = () => hwScreen(b.dataset.c));
+  /* тема из домашки открывается сразу, даже если по цепочке до неё ещё далеко */
+  $$('[data-topic]').forEach(b => b.onclick = () => { const id = b.dataset.topic, ti = TOPICS.findIndex(t => t.id === id); if (!topicOpen(p, ti)){ p.open = [...(p.open || []), id]; save() } topicScreen(id) });
+  if (!g.mine) return say('ru:hw');
+  $$('[data-pick]').forEach(b => b.onclick = () => { const id = b.dataset.pick; sel.has(id) ? sel.delete(id) : sel.add(id); hwScreen(g.code, [...sel]) });
+  const setHw = async val => { const r = await call('/api/hw', {action: 'set', code: g.code, hw: val}); if (!r) return buzz(); ding(); hwScreen(g.code) };
+  $('#save').onclick = () => sel.size ? setHw({topics: [...sel].slice(0, 6), due: $('#due').value}) : buzz();
+  if ($('#clear')) $('#clear').onclick = () => setHw(null);
+  const r = await post('/api/hw', {action: 'list', code: g.code});
+  if (screen !== 'hw' || !$('#who')) return;
+  $('#who').innerHTML = r && r.rows ? (r.rows.length ? `<div class="board">${r.rows.map(x => `<div class="brow"><span class="bn">${esc(x.name)}</span><span class="bs">${x.done.length} из ${hw ? hw.topics.length : 0} ${hw && x.done.length >= hw.topics.length ? '✅' : ''}</span></div>`).join('')}</div>` : '<p class="sub">Пока никто не открывал задание.</p>')
+    : '<p class="sub">Список появится, когда сервер обновят.</p>';
 }

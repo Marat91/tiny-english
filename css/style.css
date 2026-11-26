@@ -627,3 +627,11 @@ button.brow{width:100%;font:inherit;font-weight:800;font-size:clamp(16px,2.6vw,1
   .noprint,.snow{display:none !important}
   .pcard{box-shadow:none}
 }
+/* открыть тему, задания недели, сад */
+.locked-topic .buyt{margin-left:auto;font-size:13px;padding:6px 10px}
+.quests .dl-q i{font-style:normal;color:var(--muted);font-size:.85em;margin-left:4px}
+.garden{margin-top:12px;background:linear-gradient(#e9fbe9,#d6f5d6);border-radius:var(--r);padding:10px 14px}
+.garden small{display:block;color:#3c7a4a;font-weight:800;font-size:13px}
+.garden div{font-size:30px;line-height:1.25;letter-spacing:2px}
+.garden em{font-size:15px;font-style:normal;color:var(--muted);letter-spacing:0}
+.chip:disabled{opacity:.6}

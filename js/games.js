@@ -55,7 +55,7 @@ function gameOver(id, score, replay){
   if (best && (time || score > 0)) hi[id] = score;
   const got = gameBones(p, time ? 4 : Math.min(8, Math.ceil(score / (id === 'b' ? 3 : 2))));
   const day = dailyIncome(p); petOf(p).m = clamp(petOf(p).m + 8);            // питомец любит, когда с ним играют
-  p.gp = (p.gp || 0) + 1; dayMark(p, 'r'); touchStreak(p); saveStat(p); careTick(p); save();
+  p.gp = (p.gp || 0) + 1; dayMark(p, 'r'); questMark(p, 'g'); touchStreak(p); saveStat(p); careTick(p); save();
   G = null; hush();
   render('gameover', `
     <div class="stage" style="margin-top:24px"><div class="center">

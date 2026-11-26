@@ -16,7 +16,7 @@ function gameBones(p, n){
 const DAILY = [['l', '📘', 'Пройди урок'], ['r', '🔁', 'Повтори слова или сыграй в игру'], ['f', '🦴', 'Покорми друга']];
 /* План от родителей: plan.n — сколько уроков в день нужно для задания дня, plan.f — тема-совет */
 const planN = p => (p.plan && p.plan.n) || 1;
-function lessonDone(p){ const d = today(p); d.ln = (d.ln || 0) + 1; if (d.ln >= planN(p)) d.l = 1 }
+function lessonDone(p){ const d = today(p); d.ln = (d.ln || 0) + 1; if (d.ln >= planN(p)) d.l = 1; questMark(p, 'l') }
 function dailyHTML(p){
   const d = today(p), n = DAILY.filter(q => d[q[0]]).length, all = n === DAILY.length, need = planN(p);
   const label = q => q[0] === 'l' && need > 1 ? `Пройди ${need} ${plural(need, 'урок', 'урока', 'уроков')} (${Math.min(d.ln || 0, need)} из ${need})` : q[2];
@@ -117,11 +117,15 @@ function parents(pid){
     <div class="stage plan">
       <p class="sub" style="margin:0 0 8px">Сколько уроков в день нужно, чтобы выполнить задание дня</p>
       <div class="row">${[1, 2, 3].map(n => `<button class="chip pickp ${planN(p) === n ? 'on' : ''}" data-pn="${n}">${n} ${plural(n, 'урок', 'урока', 'уроков')}</button>`).join('')}</div>
+      <p class="sub" style="margin:16px 0 8px">Открыть темы сразу, без прохождения предыдущих</p>
+      <div class="row picks">${TOPICS.map((t, ti) => t.holiday ? '' : `<button class="chip pickp ${topicOpen(p, ti) ? 'on' : ''}" data-open="${t.id}" ${(p.open || []).includes(t.id) || !topicOpen(p, ti) ? '' : 'disabled'}>${t.icon} ${esc(t.title)}</button>`).join('')}</div>
       <p class="sub" style="margin:16px 0 8px">Какую тему советуете сейчас — она появится на главном экране</p>
       <select id="pf" class="sel"><option value="">без совета</option>${TOPICS.map((t, ti) => topicOpen(p, ti) ? `<option value="${t.id}" ${p.plan && p.plan.f === t.id ? 'selected' : ''}>${t.icon} ${esc(t.title)}</option>` : '').join('')}</select>
       ${online() && srv ? `<p class="sub" style="margin:16px 0 8px">Напоминание в Telegram, если сегодня ещё не занимались</p>
         <div class="row"><button class="chip" id="ron">${srv.remind_on ? '🔔 включено' : '🔕 выключено'}</button>
           ${srv.remind_on ? `<label class="chip">в <select id="rh">${Array.from({length: 24}, (_, h) => `<option value="${h}" ${h === srv.remind_hour ? 'selected' : ''}>${h}:00</option>`).join('')}</select></label>` : ''}</div>
+        <p class="sub" style="margin:16px 0 8px">Слово дня от бота каждое утро в 8:00</p>
+        <div class="row"><button class="chip" id="wod">${srv.wotd_on ? '📢 включено' : '🔕 выключено'}</button></div>
         <p class="sub" style="margin:16px 0 8px">Отчёт за неделю в Telegram по воскресеньям вечером</p>
         <div class="row"><button class="chip" id="won">${srv.weekly_on === false ? '🔕 выключен' : '📬 включён'}</button></div>` : ''}
     </div>
@@ -142,7 +146,10 @@ function parents(pid){
   const plan = patch => { p.plan = {...(p.plan || {}), ...patch}; save(); parents(p.id) };
   $$('[data-pn]').forEach(b => b.onclick = () => plan({n: +b.dataset.pn}));
   $('#pf').onchange = e => plan({f: e.target.value});
-  const settings = async patch => { await call('/api/settings', {remind_on: srv.remind_on, remind_hour: srv.remind_hour, public: srv.public, weekly_on: srv.weekly_on !== false, ...patch}); parents(p.id) };
+  const settings = async patch => { await call('/api/settings', {remind_on: srv.remind_on, remind_hour: srv.remind_hour, public: srv.public, weekly_on: srv.weekly_on !== false, wotd_on: !!srv.wotd_on, ...patch}); parents(p.id) };
+  if ($('#wod')) $('#wod').onclick = () => settings({wotd_on: !srv.wotd_on});
+  /* открыть тему вручную (повторное нажатие закрывает только то, что открыли здесь) */
+  $$('[data-open]').forEach(b => b.onclick = () => { const id = b.dataset.open, o = p.open || []; p.open = o.includes(id) ? o.filter(x => x !== id) : [...o, id]; save(); parents(p.id) });
   if ($('#won')) $('#won').onclick = () => settings({weekly_on: srv.weekly_on === false});
   if ($('#ron')) $('#ron').onclick = () => settings({remind_on: !srv.remind_on});
   if ($('#rh')) $('#rh').onchange = e => settings({remind_on: true, remind_hour: +e.target.value});

@@ -135,10 +135,10 @@ function room(tab, note){
         <i>❄️</i><b>Заморозка</b><small>спасает серию 🔥, если пропустить день</small><span class="pr">${(p.fr || 0) >= FREEZE_MAX ? `✓ есть ${p.fr}` : `🦴 ${FREEZE_PRICE}${p.fr ? ' · есть ' + p.fr : ''}`}</span></button></div>
     <h3 class="sec">🎪 Ярмарка <small>${fairOpen() ? 'открыта до конца воскресенья!' : 'редкие вещи — только в субботу и воскресенье'}</small></h3>
     <div class="shop">${fairItems().map(i => item(i, !fairOpen())).join('')}</div>
-    ${nyOn() ? `<h3 class="sec">🎄 Новогоднее <small>только до 10 января!</small></h3>
-    <div class="shop">${SHOP.filter(i => i.ny).map(i => item(i)).join('')}</div>` : ''}
+    ${curEvents().map(ev => `<h3 class="sec">${EVENTS[ev].icon} ${EVENTS[ev].title} <small>праздничное — только сейчас!</small></h3>
+    <div class="shop">${SHOP.filter(i => itemEv(i) === ev).map(i => item(i)).join('')}</div>`).join('')}
     <h3 class="sec">🎈 Красивое <small>просто для радости</small></h3>
-    <div class="shop">${SHOP.filter(i => i.type === 'fun' && (!i.rare || owns(p, i.id)) && (!i.ny || (owns(p, i.id) && !nyOn())) && !fairItems().includes(i)).map(i => item(i)).join('')}</div>
+    <div class="shop">${SHOP.filter(i => i.type === 'fun' && (!i.rare || owns(p, i.id)) && (!itemEv(i) || (owns(p, i.id) && !evOn(itemEv(i)))) && !fairItems().includes(i)).map(i => item(i)).join('')}</div>
     <h3 class="sec">🎨 Обои</h3>
     <div class="shop walls">${WALLS.map(w => { const has = !w.price || walls.includes(w.id), on = wallNow === w; return `<button class="si ${on ? 'on' : has ? 'own' : bones(p) < w.price ? 'cant' : ''}" data-w="${w.id}">
         <i><span class="sw" style="background:${w.dot}"></span></i><b>${esc(w.en || 'home')}</b><small>${w.ru}</small><span class="pr">${on ? '✓ выбраны' : has ? 'поставить' : '🦴 ' + w.price}</span></button>` }).join('')}</div>`;
@@ -167,6 +167,7 @@ function room(tab, note){
   render('room', `
     <div class="lbar"><button class="x" id="x">←</button><h2 style="margin:0;flex:1">${esc(c.name)} · ${stageName(c, st)}</h2><span class="chip" id="bn">🦴 ${bones(p)}</span></div>
     ${sceneHTML({char: p.char, stars: total(p), own: p.own, wall: p.wall, gs: STAGES[st].gs, look: petLook(p), fund: myFundLevel()})}
+    ${gardenHTML(p)}
     ${petBars(p)}
     <p class="sub carenote ${mult > 1 ? 'ok' : mult < 1 ? 'low' : ''}">${mult > 1 ? `${c.name} ${gw(c, 'счастлив', 'счастлива')}: за уроки ты получаешь на четверть больше 🦴`
       : mult < 1 ? `${c.name} грустит: за уроки ты получаешь меньше 🦴. Нужны еда, прогулка и сон!` : `Подними все шкалы выше 70 — и ${c.name} будет приносить больше 🦴`}</p>

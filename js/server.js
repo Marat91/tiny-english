@@ -33,6 +33,7 @@ const syncServer = () => call('/api/sync', {
   tz: new Date().getTimezoneOffset(),
   profiles: db.profiles.map(p => ({id: p.id, name: p.name, avatar: p.avatar, char: p.char, stars: total(p), streak: liveStreak(p), last: p.last, room: roomData(p)})),
   week: weekSummary(),                // для отчёта родителям по воскресеньям
+  wotd: wordsOfDay(),                 // слова для «слова дня» от бота
 });
 
 let syncTimer = 0;

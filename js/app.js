@@ -44,14 +44,18 @@ const abcDone = p => ABC.filter((_, i) => p.stars['abc:' + i] > 0).length;
 const topicDone = (p, t) => t.lessons.every((_, i) => p.stars[t.id + ':' + i] > 0);
 /* Первые пять тем открываются по одной после уроков алфавита, дальше — после предыдущей темы */
 const topicOpen = (p, ti) => TOPICS[ti].holiday
-  ? nyOn() || TOPICS[ti].lessons.some((_, i) => p.stars[TOPICS[ti].id + ':' + i] > 0)          // праздничная: во время события или если уже начата
-  : abcDone(p) >= Math.min(ti + 1, ABC.length) && (ti < 5 || topicDone(p, TOPICS[ti - 1]));
-/* Новогоднее событие: с NY.from по NY.to (месяц с нуля, число). ?ny=1 в адресе — включить для проверки */
-function nyOn(){
-  if (/[?&]ny=1/.test(location.search)) return true;
-  const d = new Date(), m = d.getMonth(), n = d.getDate();
-  return (m === NY.from[0] && n >= NY.from[1]) || (m === NY.to[0] && n <= NY.to[1]);
+  ? evOn(TOPICS[ti].holiday) || TOPICS[ti].lessons.some((_, i) => p.stars[TOPICS[ti].id + ':' + i] > 0)   // праздничная: во время события или если уже начата
+  : (p.open || []).includes(TOPICS[ti].id)                                                               // открыли родители или за косточки
+    || (abcDone(p) >= Math.min(ti + 1, ABC.length) && (ti < 5 || topicDone(p, TOPICS[ti - 1])));
+/* Идёт ли праздник (EVENTS в data.js). ?ev=halloween (или ?ny=1) в адресе — включить для проверки */
+function evOn(id){
+  const e = EVENTS[id]; if (!e) return false;
+  if (new RegExp('[?&]ev=' + id + '\\b').test(location.search) || (id === 'ny' && /[?&]ny=1/.test(location.search))) return true;
+  const d = new Date(), now = d.getMonth() * 100 + d.getDate(), a = e.from[0] * 100 + e.from[1], b = e.to[0] * 100 + e.to[1];
+  return a <= b ? now >= a && now <= b : now >= a || now <= b;                                     // через Новый год
 }
+const nyOn = () => evOn('ny');
+const curEvents = () => Object.keys(EVENTS).filter(evOn);
 const advDay = () => { const d = new Date(); return d.getMonth() === 11 || /[?&]ny=1/.test(location.search) ? Math.min(31, d.getDate()) : 0 };
 /* Виды уроков из js/learn.js: KINDS[вид] = {label, obj(L), steps(L)}. L.req — какой урок нужен (для чтения), иначе — пройденная тема L.t */
 const KINDS = {};
@@ -212,9 +216,16 @@ function lessonCard(p, L){
 }
 const starsHTML = n => `<span class="st">${[1, 2, 3].map(i => `<i class="${i <= n ? 'on' : ''}">★</i>`).join('')}</span>`;
 
+/* Звук для всего, что уже открыто: чтение и открытые темы (файлы грузятся по одному разу) */
+function loadOpenAudio(p){
+  loadAudio('core');
+  if (abcDone(p) >= ABC.length) loadAudio('read');
+  TOPICS.forEach((t, ti) => { if (topicOpen(p, ti)) loadAudio('t-' + t.id) });
+}
 function home(){
   playAs = null;
   const p = me(); if (!p) return profiles();
+  loadOpenAudio(p);
   if (p.b == null) p.b = total(p) * 2;                    // тем, кто играл до появления косточек, — за уже набранные звёзды
   seedRev(p);
   const c = myPet(), t = total(p), done = abcDone(p), q = petOf(p), gifts = myGifts(p).length;
@@ -250,9 +261,10 @@ function home(){
       <button id="m-map"><i>🗺️</i>Карта</button>
     </div>
     ${chatOn() ? `<button class="review chatb" id="m-chat"><span class="rv-ic">💬</span><span class="rv-t"><b>Поболтать с ${esc(c.name)}</b><small>Разговор по-английски — питомец отвечает и подсказывает</small></span><span class="rv-go">▶</span></button>` : ''}
-    ${nyBanner(p)}${focusBanner(p)}
+    ${nyBanner(p)}${evBanner(p)}${focusBanner(p)}${hwBanner()}
     ${gifts ? `<button class="review giftb" id="gift"><span class="rv-ic">🎁</span><span class="rv-t"><b>Тебе подарок!</b><small>${gifts > 1 ? `Тебя ждут ${gifts} ${plural(gifts, 'подарок', 'подарка', 'подарков')}` : 'Нажми, чтобы открыть'}</small></span><span class="rv-go">▶</span></button>` : ''}
     ${dailyHTML(p)}
+    ${questsHTML(p)}
 
     ${dueN
       ? `<button class="review" id="rev"><span class="rv-ic">🔁</span><span class="rv-t"><b>Повторение</b>
@@ -275,7 +287,7 @@ function home(){
       if (topicOpen(p, ti)) return `<h3 class="sec">${tp.icon} ${tp.title}</h3>
         <div class="grid">${ALL.filter(L => L.t === tp).map(L => lessonCard(p, L)).join('')}</div>`;
       const why = done < Math.min(ti + 1, ABC.length) ? (ti < 5 ? `после урока ${ti + 1} алфавита` : 'после всего алфавита') : `после темы «${TOPICS[ti - 1].title}»`;
-      return `<div class="locked-topic"><span>${tp.icon} ${tp.title}</span><small>🔒 откроется ${why}</small></div>`;
+      return `<div class="locked-topic"><span>${tp.icon} ${tp.title}</span><small>🔒 откроется ${why}</small><button class="chip buyt" data-t="${tp.id}">🔓 ${UNLOCK_PRICE} 🦴</button></div>`;
     }).join('')}
     <div class="center" style="margin-top:30px"><button class="link" id="par">👨‍👩‍👧 Для родителей</button></div>`);
   $('#who').onclick = profiles;
@@ -295,6 +307,10 @@ function home(){
   if ($('#m-chat')) $('#m-chat').onclick = chat;
   if ($('#ny')) $('#ny').onclick = advent;
   if ($('#focus')) $('#focus').onclick = () => topicScreen(p.plan.f);
+  if ($('#evb')) $('#evb').onclick = () => topicScreen($('#evb').dataset.t);
+  if ($('#hwb')) $('#hwb').onclick = () => hwScreen();
+  wireQuests();
+  $$('.buyt').forEach(b => b.onclick = () => unlockTopic(b.dataset.t));
   $('.pet').onclick = () => { petReact('ok'); say(c.hello) };
   wireCards();
 }
@@ -320,7 +336,7 @@ function nyBanner(p){
   return `<button class="review ny ${dd && !opened && lessonToday(p) ? 'giftb' : ''}" id="ny"><span class="rv-ic">🎄</span><span class="rv-t"><b>Новый год!</b><small>${text}</small></span><span class="rv-go">▶</span></button>`;
 }
 function advent(){
-  const p = me(), dd = advDay(), got = p.adv || (p.adv = []), t = TOPICS.find(x => x.holiday);
+  const p = me(), dd = advDay(), got = p.adv || (p.adv = []), t = TOPICS.find(x => x.holiday === 'ny');
   const cell = n => {
     const big = NY.big[n], item = big && SHOP.find(s => s.id === big), open = got.includes(n);
     const cls = open ? 'open' : n === dd ? (lessonToday(p) ? 'ready' : 'today') : n < dd ? 'miss' : 'wait';
@@ -393,6 +409,7 @@ function worldMap(){
 }
 function topicScreen(key){
   const p = me(), t = TOPICS.find(x => x.id === key);
+  loadAudio(key === 'read' ? 'read' : 't-' + key);
   if (!t && key !== 'abc' && key !== 'read') return home();
   const list = key === 'abc' ? ALL.filter(L => L.id.startsWith('abc:')) : key === 'read' ? ALL.filter(L => READING.includes(L.kind)) : ALL.filter(L => L.t === t);
   render('topic', `
@@ -477,7 +494,7 @@ function rating(){
     $('#x').onclick = home;
     if (on && g && boardData && boardData.scope === boardTab) wireSocial(g, boardData, draw);
     $$('[data-tab]').forEach(b => b.onclick = () => { boardTab = b.dataset.tab; draw(); load() });
-    const settings = patch => call('/api/settings', {remind_on: srv.remind_on, remind_hour: srv.remind_hour, public: srv.public, weekly_on: srv.weekly_on !== false, ...patch});
+    const settings = patch => call('/api/settings', {remind_on: srv.remind_on, remind_hour: srv.remind_hour, public: srv.public, weekly_on: srv.weekly_on !== false, wotd_on: !!srv.wotd_on, ...patch});
     if ($('#ron')) $('#ron').onclick = async () => { await settings({remind_on: !srv.remind_on}); draw() };
     if ($('#rh')) $('#rh').onchange = async e => { await settings({remind_on: true, remind_hour: +e.target.value}); draw() };
     if ($('#pub')) $('#pub').onclick = async () => { await settings({public: !srv.public}); boardData = null; draw(); load() };
@@ -1105,7 +1122,7 @@ function finish(){
   let stars = 0, head, sub, big, again, got = 3;                    // got — сколько косточек положено за это занятие
 
   if (mode === 'review'){
-    const n = S.n; dayMark(p, 'r');
+    const n = S.n; dayMark(p, 'r'); questMark(p, 'r');
     head = PRAISE[1].en; sub = `Повторено: ${n} ${plural(n, 'слово', 'слова', 'слов')}`;
     big = '<div class="bigem" style="font-size:clamp(54px,11vw,82px)">🔁✨</div>';
     stars = 3; again = dueItems(p).length ? startReview : null;
@@ -1157,6 +1174,8 @@ preloadPets();
 function start(){
   const pr = /^#print=([a-z0-9,]+)$/.exec(location.hash);                 // лист с карточками для печати (см. more.js)
   if (pr) return printSheet(pr[1].split(','));
+  /* запоминаем файлы игры и звук на телефоне: открывается быстрее и работает без интернета (см. sw.js) */
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
   db.profiles.length ? (me() ? home() : profiles()) : addProfile(); queueSync() }
 if (cloud){
   render('loading', `<div class="center" style="margin-top:60px">${petSVG('dog', 0)}<p class="sub">Загружаю…</p></div>`);

@@ -1,5 +1,17 @@
-/* Звук. Слова берутся из записанного набора audio/pack.js (работает везде, в том числе
-   в Telegram на Android). Если записи нет — пробуем встроенный голос устройства. */
+/* Звук. Слова берутся из записей в audio/*.js (работает везде, в том числе в Telegram на Android).
+   Записи разложены по файлам (список — audio/index.js): общий грузится сразу, файл темы — когда тема открыта.
+   Если записи нет (или файл ещё грузится) — пробуем встроенный голос устройства. */
+const audioLoaded = {};
+function loadAudio(bucket){
+  const f = window.AUDIO_FILES && window.AUDIO_FILES[bucket];
+  if (!f || audioLoaded[bucket]) return;
+  audioLoaded[bucket] = 1;
+  const s = document.createElement('script');
+  s.src = 'audio/' + f; s.async = true;
+  s.onerror = () => { audioLoaded[bucket] = 0 };              // нет сети — попробуем в следующий раз
+  document.head.appendChild(s);
+}
+loadAudio('core');
 const canSpeak = 'speechSynthesis' in window;
 let voice = null;
 function pickVoice(){
