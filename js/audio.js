@@ -27,7 +27,7 @@ function tts(text, done){
   speechSynthesis.speak(u);
 }
 /* say('A', 'apple') — произносит по очереди; новый вызов обрывает предыдущий.
-   Число в списке — пауза; 'ru:<вид>' — задание по-русски из записи. */
+   Число в списке — пауза; 'ru:<вид>' — задание по-русски из записи; функция — вызывается в свою очередь (подсветка строк). */
 function say(...texts){
   hush();
   const my = sayToken;
@@ -36,6 +36,7 @@ function say(...texts){
     if (my !== sayToken || i >= texts.length) return;
     const t = texts[i++];
     if (typeof t === 'number') return setTimeout(next, t);       // пауза в миллисекундах
+    if (typeof t === 'function'){ try { t() } catch(e){} return next() }
     const clip = clipFor(t);
     if (!clip) return t.startsWith('ru:') ? next() : tts(t, next); // русские задания есть только в записи
     player.onended = next;

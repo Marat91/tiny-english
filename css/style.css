@@ -498,3 +498,54 @@ button.brow{width:100%;font:inherit;font-weight:800;font-size:clamp(16px,2.6vw,1
 .btn.mic.on{animation:recpulse 1s ease-in-out infinite}
 .btn:disabled{opacity:.4}
 @keyframes recpulse{50%{transform:scale(1.12);box-shadow:0 0 0 12px rgba(244,63,94,.18)}}
+/* меню из пяти кнопок */
+.menu{grid-template-columns:repeat(5,1fr);gap:8px}
+.menu button{padding:10px 2px 8px;font-size:clamp(11px,2.1vw,16px)}
+/* снег во время праздника */
+.snow{position:fixed;inset:0;pointer-events:none;z-index:5;overflow:hidden}
+.snow i{position:absolute;top:-30px;color:#b9d4ff;font-style:normal;opacity:.75;animation:snowfall 9s linear infinite}
+@keyframes snowfall{to{transform:translate(30px,110vh) rotate(200deg)}}
+.review.ny{border-color:#86d4a0;background:linear-gradient(135deg,#f0fff4,#fff)}
+.review.focus{border-color:#c9c6ff}
+/* адвент-календарь */
+.advent{display:grid;grid-template-columns:repeat(7,1fr);gap:7px;margin-top:14px}
+.adv{aspect-ratio:1;border-radius:14px;background:#fff;box-shadow:var(--sh);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:900;font-size:clamp(13px,2.4vw,17px);position:relative;border:2px solid transparent}
+.adv i{font-style:normal;font-size:1.2em;line-height:1.1;min-height:1.1em}
+.adv.big{background:linear-gradient(135deg,#fff4c9,#ffe3a3)}
+.adv.open{background:var(--green-soft);border-color:var(--green)}
+.adv.miss{opacity:.45}
+.adv.wait{color:#b9bfd3}
+.adv.today{border-color:var(--p)}
+.adv.ready{border-color:var(--orange);animation:chest 1.4s ease-in-out infinite}
+.adv.shake{animation:shake .4s}
+/* карта */
+.map{position:relative;padding:10px 0 30px;background:radial-gradient(circle at 30% 20%,#dff3ff 0,transparent 55%),radial-gradient(circle at 70% 70%,#e9fbe9 0,transparent 55%)}
+.mrow{position:relative;height:118px}
+.mrow::before{content:"";position:absolute;left:50%;top:-30px;height:60px;border-left:4px dotted #c9cde0;transform:translateX(-50%)}
+.mrow:first-child::before{display:none}
+.mnode{position:absolute;left:var(--x);top:8px;transform:translateX(-50%);width:84px;height:84px;border-radius:50%;background:#fff;box-shadow:var(--sh);border:4px solid var(--line);z-index:1}
+.mnode i{font-style:normal;font-size:40px;line-height:1}
+.mnode.open{border-color:var(--p)}
+.mnode.done{border-color:var(--green);background:var(--green-soft)}
+.mnode.locked{filter:grayscale(1);opacity:.6}
+.mnode.cur{animation:mglow 1.6s ease-in-out infinite;border-color:var(--orange)}
+@keyframes mglow{50%{box-shadow:0 0 0 10px rgba(255,159,67,.25)}}
+.mnode em{position:absolute;right:-4px;top:-4px;background:var(--green);color:#fff;border-radius:50%;width:26px;height:26px;font-style:normal;font-weight:900;font-size:15px;line-height:26px}
+.mpet{position:absolute;left:62px;top:-26px}
+.mpet .pet,.mpet .pet.small{width:58px;height:auto}
+.mlabel{position:absolute;left:var(--x);top:94px;transform:translateX(-50%);white-space:nowrap;font-weight:900;font-size:14px;text-align:center;z-index:2}
+.mlabel small{display:block;color:var(--muted);font-size:12px}
+/* прописи */
+.tracebox{max-width:340px;margin:0 auto;background:#fff;border-radius:var(--r);box-shadow:var(--sh);overflow:hidden}
+.tracebox canvas{display:block;width:100%;height:auto;touch-action:none}
+/* грамматика и стишки */
+.gap2 u{text-decoration:none;border-bottom:5px solid var(--red);color:var(--p);display:inline-block;min-width:1.4em}
+.rhyme{display:flex;flex-direction:column;gap:8px;max-width:520px;margin:6px auto 0}
+.rl{background:#fff;border:2.5px solid var(--line);border-radius:18px;padding:10px 14px;font:inherit;font-weight:900;font-size:clamp(17px,3.2vw,24px);color:var(--ink);text-align:left;transition:transform .2s,background .2s}
+.rl small{display:block;color:var(--muted);font-weight:700;font-size:.66em}
+.rl.on{background:var(--p-soft);border-color:var(--p);transform:scale(1.03);color:var(--p)}
+/* команды */
+.gpet .pet{width:clamp(120px,26vw,170px)}
+.opts.cmds .opt{font-size:clamp(40px,9vw,60px);padding:14px 8px}
+/* план для родителей */
+.sel{font:inherit;font-weight:800;font-size:16px;padding:10px 12px;border-radius:14px;border:2px solid var(--line);background:#fff;max-width:100%}

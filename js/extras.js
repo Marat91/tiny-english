@@ -14,12 +14,16 @@ function gameBones(p, n){
 
 /* ================= Задание дня ================= */
 const DAILY = [['l', '📘', 'Пройди урок'], ['r', '🔁', 'Повтори слова или сыграй в игру'], ['f', '🦴', 'Покорми друга']];
+/* План от родителей: plan.n — сколько уроков в день нужно для задания дня, plan.f — тема-совет */
+const planN = p => (p.plan && p.plan.n) || 1;
+function lessonDone(p){ const d = today(p); d.ln = (d.ln || 0) + 1; if (d.ln >= planN(p)) d.l = 1 }
 function dailyHTML(p){
-  const d = today(p), n = DAILY.filter(q => d[q[0]]).length, all = n === DAILY.length;
+  const d = today(p), n = DAILY.filter(q => d[q[0]]).length, all = n === DAILY.length, need = planN(p);
+  const label = q => q[0] === 'l' && need > 1 ? `Пройди ${need} ${plural(need, 'урок', 'урока', 'уроков')} (${Math.min(d.ln || 0, need)} из ${need})` : q[2];
   return `<div class="daily ${d.c ? 'done' : ''}">
     <div class="dl-t">
       <b>Задание на сегодня</b>
-      <div class="dl-q">${DAILY.map(q => `<span class="${d[q[0]] ? 'ok' : ''}">${d[q[0]] ? '✅' : q[1]} ${q[2]}</span>`).join('')}</div>
+      <div class="dl-q">${DAILY.map(q => `<span class="${d[q[0]] ? 'ok' : ''}">${d[q[0]] ? '✅' : q[1]} ${label(q)}</span>`).join('')}</div>
     </div>
     <button class="chest ${all && !d.c ? 'ready' : ''}" id="chest"><i>${d.c ? '📭' : '🎁'}</i><small>${d.c ? 'до завтра' : all ? 'открыть!' : n + ' из 3'}</small></button>
   </div>`;
@@ -109,6 +113,16 @@ function parents(pid){
     ${hard.length ? `<div class="board">${hard.map(([k, n]) => `<div class="brow"><span class="bn">${label(k)}</span><span class="bs">ошибок: ${n}</span></div>`).join('')}</div>
         <p class="sub" style="margin:10px 0 0;font-size:14px">Эти слова игра сама чаще показывает в «Повторении». Слово уходит из списка, когда на него начинают отвечать верно.</p>`
       : `<p class="sub">${s.a ? 'Трудных слов сейчас нет 👍' : 'Статистика копится с этой версии игры — данные появятся после первых занятий.'}</p>`}
+    <h3 class="sec">🎯 План на день</h3>
+    <div class="stage plan">
+      <p class="sub" style="margin:0 0 8px">Сколько уроков в день нужно, чтобы выполнить задание дня</p>
+      <div class="row">${[1, 2, 3].map(n => `<button class="chip pickp ${planN(p) === n ? 'on' : ''}" data-pn="${n}">${n} ${plural(n, 'урок', 'урока', 'уроков')}</button>`).join('')}</div>
+      <p class="sub" style="margin:16px 0 8px">Какую тему советуете сейчас — она появится на главном экране</p>
+      <select id="pf" class="sel"><option value="">без совета</option>${TOPICS.map((t, ti) => topicOpen(p, ti) ? `<option value="${t.id}" ${p.plan && p.plan.f === t.id ? 'selected' : ''}>${t.icon} ${esc(t.title)}</option>` : '').join('')}</select>
+      ${online() && srv ? `<p class="sub" style="margin:16px 0 8px">Напоминание в Telegram, если сегодня ещё не занимались</p>
+        <div class="row"><button class="chip" id="ron">${srv.remind_on ? '🔔 включено' : '🔕 выключено'}</button>
+          ${srv.remind_on ? `<label class="chip">в <select id="rh">${Array.from({length: 24}, (_, h) => `<option value="${h}" ${h === srv.remind_hour ? 'selected' : ''}>${h}:00</option>`).join('')}</select></label>` : ''}</div>` : ''}
+    </div>
     <h3 class="sec">🦴 Косточки: заработано и потрачено</h3>
     ${reportHTML(p)}
     <h3 class="sec">📚 Темы</h3>
@@ -123,4 +137,10 @@ function parents(pid){
     <p class="sub" style="margin:22px 0 0;font-size:14px">Совет: 5–10 минут каждый день дают больше, чем час раз в неделю. «Знает уверенно» — слова, на которые ребёнок верно ответил в повторении три раза подряд с перерывами в несколько дней.</p>`);
   $('#x').onclick = home;
   $$('.tab').forEach(b => b.onclick = () => parents(b.dataset.id));
+  const plan = patch => { p.plan = {...(p.plan || {}), ...patch}; save(); parents(p.id) };
+  $$('[data-pn]').forEach(b => b.onclick = () => plan({n: +b.dataset.pn}));
+  $('#pf').onchange = e => plan({f: e.target.value});
+  const settings = async patch => { await call('/api/settings', {remind_on: srv.remind_on, remind_hour: srv.remind_hour, public: srv.public, ...patch}); parents(p.id) };
+  if ($('#ron')) $('#ron').onclick = () => settings({remind_on: !srv.remind_on});
+  if ($('#rh')) $('#rh').onchange = e => settings({remind_on: true, remind_hour: +e.target.value});
 }

@@ -43,9 +43,18 @@ function sparkle(d){
 const abcDone = p => ABC.filter((_, i) => p.stars['abc:' + i] > 0).length;
 const topicDone = (p, t) => t.lessons.every((_, i) => p.stars[t.id + ':' + i] > 0);
 /* Первые пять тем открываются по одной после уроков алфавита, дальше — после предыдущей темы */
-const topicOpen = (p, ti) => abcDone(p) >= Math.min(ti + 1, ABC.length) && (ti < 5 || topicDone(p, TOPICS[ti - 1]));
+const topicOpen = (p, ti) => TOPICS[ti].holiday
+  ? nyOn() || TOPICS[ti].lessons.some((_, i) => p.stars[TOPICS[ti].id + ':' + i] > 0)          // праздничная: во время события или если уже начата
+  : abcDone(p) >= Math.min(ti + 1, ABC.length) && (ti < 5 || topicDone(p, TOPICS[ti - 1]));
+/* Новогоднее событие: с NY.from по NY.to (месяц с нуля, число). ?ny=1 в адресе — включить для проверки */
+function nyOn(){
+  if (/[?&]ny=1/.test(location.search)) return true;
+  const d = new Date(), m = d.getMonth(), n = d.getDate();
+  return (m === NY.from[0] && n >= NY.from[1]) || (m === NY.to[0] && n <= NY.to[1]);
+}
+const advDay = () => { const d = new Date(); return d.getMonth() === 11 || /[?&]ny=1/.test(location.search) ? Math.min(31, d.getDate()) : 0 };
 function isLocked(p, L){
-  if (L.kind === 'phrase' || L.kind === 'dialog' || L.kind === 'story') return !(topicOpen(p, L.ti) && topicDone(p, L.t));
+  if (['phrase', 'dialog', 'story', 'gram', 'rhyme'].includes(L.kind)) return !(topicOpen(p, L.ti) && topicDone(p, L.t));
   if (L.kind === 'read') return abcDone(p) < ABC.length || (L.i > 0 && !(p.stars['rd:' + (L.i - 1)] > 0));
   if (L.kind === 'exam') return L.t ? !(topicOpen(p, L.ti) && topicDone(p, L.t)) : abcDone(p) < ABC.length;
   if (L.kind === 'abc') return L.i > 0 && !(p.stars['abc:' + (L.i - 1)] > 0);
@@ -62,6 +71,8 @@ const ALL = [
   ...READ.map((set, i) => ({id: 'rd:' + i, kind: 'read', i, set})),
   ...DIALOGS.map((d, i) => { const ti = TOPICS.findIndex(t => t.id === d.after); return {id: 'dl:' + i, kind: 'dialog', i, d, t: TOPICS[ti], ti, set: d.set} }),
   ...STORIES.map((st, i) => { const ti = TOPICS.findIndex(t => t.id === st.after); return {id: 'st:' + i, kind: 'story', i, st, t: TOPICS[ti], ti, set: st.quiz.map(q => q.x)} }),
+  ...GRAMMAR.map((g, i) => { const ti = TOPICS.findIndex(t => t.id === g.after); return {id: 'gr:' + i, kind: 'gram', i, g, t: TOPICS[ti], ti, set: g.set} }),
+  ...RHYMES.map((r, i) => { const ti = TOPICS.findIndex(t => t.id === r.after); return {id: 'rh:' + i, kind: 'rhyme', i, r, t: TOPICS[ti], ti, set: []} }),
 ];
 /* Уроки, слова из которых не попадают в повторение */
 const noReview = L => L.kind !== 'abc' && L.kind !== 'word';
@@ -182,10 +193,11 @@ function lessonCard(p, L){
       <div class="ls phr">${[...new Set(L.set.map(x => '-' + x.fam))].join(' ')}<span>${L.set.slice(0, 2).map(pic).join('')}</span></div>
       <div class="meta"><span class="num">📖 Чтение ${L.i + 1}</span>${locked ? '<span class="st">🔒</span>' : starsHTML(st)}</div>
     </button>`;
-  if (L.kind === 'dialog' || L.kind === 'story')
+  const sp = {dialog: ['🗨️ Разговор', L.d], story: ['📚 История', L.st], gram: ['🧩 Грамматика', L.g], rhyme: ['🎵 Стишок', L.r]}[L.kind];
+  if (sp)
     return `<button class="lcard c${(L.i + 4) % 6} ${locked ? 'locked' : ''}" data-id="${L.id}">
-      <div class="ls phr">${esc(L.kind === 'story' ? L.st.title : L.d.title)}<span>${L.kind === 'story' ? L.st.icon : L.d.icon}</span></div>
-      <div class="meta"><span class="num">${L.kind === 'story' ? '📚 История' : '🗨️ Разговор'}</span>${locked ? '<span class="st">🔒</span>' : starsHTML(st)}</div>
+      <div class="ls phr">${esc(sp[1].title)}<span>${sp[1].icon}</span></div>
+      <div class="meta"><span class="num">${sp[0]}</span>${locked ? '<span class="st">🔒</span>' : starsHTML(st)}</div>
     </button>`;
   const face = L.kind === 'abc' ? `<div class="ls">${L.set.map(x => x.u).join('')}</div>`
                                 : `<div class="ls pics">${L.set.slice(0, 5).map(pic).join('')}</div>`;
@@ -206,6 +218,7 @@ function home(){
   const dueN = dueItems(p).length, learned = Object.keys(revOf(p).m).length;
   const hello = pick([[c.hello, c.helloRu], ['Hello, ' + esc(p.name) + '!', 'Привет! Поиграем?'], ["Let's play!", 'Давай играть!']]);
   render('home', `
+    ${nyOn() ? snowHTML() : ''}
     <div class="top">
       <button class="chip" id="who">${av(p)} ${esc(p.name)}</button>
       <span class="grow"></span>
@@ -230,7 +243,9 @@ function home(){
       <button id="m-room"><i>🏠</i>Комната</button>
       <button id="m-album"><i>📒</i>Альбом</button>
       <button id="fam"><i>🏆</i>Рейтинг</button>
+      <button id="m-map"><i>🗺️</i>Карта</button>
     </div>
+    ${nyBanner(p)}${focusBanner(p)}
     ${gifts ? `<button class="review giftb" id="gift"><span class="rv-ic">🎁</span><span class="rv-t"><b>Тебе подарок!</b><small>${gifts > 1 ? `Тебя ждут ${gifts} ${plural(gifts, 'подарок', 'подарка', 'подарков')}` : 'Нажми, чтобы открыть'}</small></span><span class="rv-go">▶</span></button>` : ''}
     ${dailyHTML(p)}
 
@@ -243,11 +258,13 @@ function home(){
     <div class="grid">
       ${ALL.filter(L => L.id.startsWith('abc:')).map(L => lessonCard(p, L)).join('')}
       <button class="lcard" id="abc"><div class="ls">🔤</div><div class="meta"><span class="num">Все буквы</span><span class="st">🔊</span></div></button>
+      ${done ? `<button class="lcard c2" id="trc"><div class="ls">✍️</div><div class="meta"><span class="num">Прописи</span>${starsHTML(p.stars.trace || 0)}</div></button>` : ''}
     </div>
     ${done >= ABC.length ? `<h3 class="sec">📖 Учимся читать</h3>
       <div class="grid">${ALL.filter(L => L.kind === 'read').map(L => lessonCard(p, L)).join('')}</div>`
       : `<div class="locked-topic"><span>📖 Учимся читать</span><small>🔒 откроется после всего алфавита</small></div>`}
     ${TOPICS.map((tp, ti) => {
+      if (tp.holiday && !topicOpen(p, ti)) return '';
       if (topicOpen(p, ti)) return `<h3 class="sec">${tp.icon} ${tp.title}</h3>
         <div class="grid">${ALL.filter(L => L.t === tp).map(L => lessonCard(p, L)).join('')}</div>`;
       const why = done < Math.min(ti + 1, ABC.length) ? (ti < 5 ? `после урока ${ti + 1} алфавита` : 'после всего алфавита') : `после темы «${TOPICS[ti - 1].title}»`;
@@ -264,12 +281,115 @@ function home(){
   $('#fam').onclick = rating;
   if ($('#rev')) $('#rev').onclick = startReview;
   $('#abc').onclick = () => alphabet();
+  $('#m-map').onclick = worldMap;
+  if ($('#trc')) $('#trc').onclick = startTrace;
+  if ($('#ny')) $('#ny').onclick = advent;
+  if ($('#focus')) $('#focus').onclick = () => topicScreen(p.plan.f);
   $('.pet').onclick = () => { petReact('ok'); say(c.hello) };
+  wireCards();
+}
+function wireCards(){
   $$('.lcard[data-id]').forEach(b => b.onclick = () => {
     if (b.classList.contains('locked')) { buzz(); petReact('no'); return }
     const L = ALL.find(x => x.id === b.dataset.id);
     L.kind === 'exam' ? startExam(L) : startLesson(L);
   });
+}
+
+/* ================= Новогоднее событие ================= */
+function snowHTML(){
+  return `<div class="snow" aria-hidden="true">${Array.from({length: 16}, (_, i) =>
+    `<i style="left:${(i * 37) % 100}%;animation-delay:-${(i * 1.3) % 9}s;animation-duration:${8 + i % 5}s;font-size:${10 + (i % 4) * 5}px">❄</i>`).join('')}</div>`;
+}
+const lessonToday = p => !!(today(p).ln || today(p).l);
+function nyBanner(p){
+  if (!nyOn()) return '';
+  const dd = advDay(), opened = (p.adv || []).includes(dd);
+  const text = !dd ? 'Праздничная тема, история и украшения' : opened ? 'Окошко на сегодня открыто. Приходи завтра!'
+    : lessonToday(p) ? 'Можно открыть окошко календаря! 🎁' : 'Пройди урок — и откроется окошко календаря';
+  return `<button class="review ny ${dd && !opened && lessonToday(p) ? 'giftb' : ''}" id="ny"><span class="rv-ic">🎄</span><span class="rv-t"><b>Новый год!</b><small>${text}</small></span><span class="rv-go">▶</span></button>`;
+}
+function advent(){
+  const p = me(), dd = advDay(), got = p.adv || (p.adv = []), t = TOPICS.find(x => x.holiday);
+  const cell = n => {
+    const big = NY.big[n], item = big && SHOP.find(s => s.id === big), open = got.includes(n);
+    const cls = open ? 'open' : n === dd ? (lessonToday(p) ? 'ready' : 'today') : n < dd ? 'miss' : 'wait';
+    return `<button class="adv ${cls} ${big ? 'big' : ''}" data-n="${n}"><b>${n}</b><i>${open ? (item ? item.icon : '🦴') : n < dd ? '❄️' : big ? '🎁' : ''}</i></button>`;
+  };
+  render('advent', `
+    ${snowHTML()}
+    <div class="lbar"><button class="x" id="x">←</button><h2 style="margin:0;flex:1">🎄 Новый год</h2><span class="chip">🦴 ${bones(p)}</span></div>
+    ${dd ? `<p class="sub">Каждый день декабря — новое окошко. Пройди любой урок, и окошко дня откроется. В больших окошках — украшения для комнаты!</p>
+      <div class="advent">${Array.from({length: 31}, (_, i) => cell(i + 1)).join('')}</div>`
+      : '<p class="sub">Календарь был в декабре. Праздничная тема открыта до 10 января!</p>'}
+    <h3 class="sec">${t.icon} ${t.title}</h3>
+    <div class="grid">${ALL.filter(L => L.t === t).map(L => lessonCard(p, L)).join('')}</div>
+    <div class="center" style="margin-top:18px"><button class="btn ghost" id="shop">🛍️ Праздничные украшения</button></div>`);
+  $('#x').onclick = home;
+  $('#shop').onclick = () => room('shop');
+  wireCards();
+  if (!advent.told){ advent.told = 1; say('ru:advent') }
+  $$('.adv').forEach(b => b.onclick = () => {
+    const n = +b.dataset.n;
+    if (n !== dd || got.includes(n)) return n < dd || got.includes(n) ? say('Happy New Year') : buzz();
+    if (!lessonToday(p)){ buzz(); b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake'); return }
+    got.push(n);
+    const big = NY.big[n], item = big && SHOP.find(s => s.id === big), give = item && !owns(p, item.id);
+    if (give) p.own = [...(p.own || []), item.id]; else earn(p, NY.bones);
+    save();
+    render('chest', `
+      ${snowHTML()}
+      <div class="stage" style="margin-top:24px"><div class="center">
+        <div class="bigem medal">${give ? item.icon : '🎁'}</div>
+        <h1>${n} декабря</h1>
+        <div class="earned big">${give ? `${esc(item.en)} — ${item.ru}! Уже стоит в комнате` : `+${NY.bones} 🦴`}</div>
+        <p class="sub" style="margin:0">Завтра откроется новое окошко</p>
+        <button class="btn" id="go">Ура! →</button>
+      </div></div>`);
+    fanfare(); setTimeout(() => { if (screen === 'chest') say(give ? item.en : 'Happy New Year') }, 600);
+    $('#go').onclick = advent;
+  });
+}
+/* Совет родителей на главном экране */
+function focusBanner(p){
+  const f = p.plan && p.plan.f, ti = TOPICS.findIndex(t => t.id === f);
+  if (ti < 0 || !topicOpen(p, ti) || p.stars[f + ':x'] > 0) return '';
+  return `<button class="review focus" id="focus"><span class="rv-ic">${TOPICS[ti].icon}</span><span class="rv-t"><b>Совет на сегодня</b><small>Тема «${esc(TOPICS[ti].title)}» — так решили родители</small></span><span class="rv-go">▶</span></button>`;
+}
+
+/* ================= Карта путешествия ================= */
+function mapNodes(p){
+  const nodes = [
+    {key: 'abc', icon: '🔤', title: 'Алфавит', ids: ABC.map((_, i) => 'abc:' + i), open: true},
+    {key: 'read', icon: '📖', title: 'Учимся читать', ids: READ.map((_, i) => 'rd:' + i), open: abcDone(p) >= ABC.length},
+    ...TOPICS.map((t, ti) => ({key: t.id, icon: t.icon, title: t.title, ids: t.lessons.map((_, i) => t.id + ':' + i), open: topicOpen(p, ti), holiday: t.holiday}))
+      .filter(n => !n.holiday || n.open),
+  ];
+  nodes.forEach(n => { n.done = n.ids.every(id => p.stars[id] > 0); n.stars = n.ids.reduce((a, id) => a + (p.stars[id] || 0), 0) });
+  return nodes;
+}
+function worldMap(){
+  const p = me(), nodes = mapNodes(p), cur = nodes.findIndex(n => n.open && !n.done && !n.holiday);
+  render('map', `
+    <div class="lbar"><button class="x" id="x">←</button><h2 style="margin:0;flex:1">🗺️ Карта</h2><span class="chip">⭐ ${total(p)}</span></div>
+    <p class="sub">${nodes.filter(n => n.done).length} из ${nodes.length} островов пройдено. Нажми на остров, чтобы открыть уроки</p>
+    <div class="map">${nodes.map((n, i) => `<div class="mrow ${i % 2 ? 'r' : ''}" style="--x:${Math.round(50 + 28 * Math.sin(i * 1.15))}%">
+      <button class="mnode ${n.done ? 'done' : n.open ? 'open' : 'locked'} ${i === cur ? 'cur' : ''}" data-k="${n.key}">
+        <i>${n.open ? n.icon : '🔒'}</i>${i === cur ? `<span class="mpet">${myPetHTML(p, 'small')}</span>` : ''}${n.done ? '<em>✓</em>' : ''}</button>
+      <span class="mlabel">${esc(n.title)}<small>${n.open ? '⭐ ' + n.stars + ' / ' + n.ids.length * 3 : 'закрыто'}</small></span></div>`).join('')}</div>`);
+  $('#x').onclick = home;
+  $$('.mnode').forEach(b => b.onclick = () => b.classList.contains('locked') ? buzz() : topicScreen(b.dataset.k));
+  const c = $('.mnode.cur'); if (c && c.scrollIntoView) setTimeout(() => c.scrollIntoView({block: 'center', behavior: 'smooth'}), 60);
+}
+function topicScreen(key){
+  const p = me(), t = TOPICS.find(x => x.id === key);
+  if (!t && key !== 'abc' && key !== 'read') return home();
+  const list = key === 'abc' ? ALL.filter(L => L.id.startsWith('abc:')) : key === 'read' ? ALL.filter(L => L.kind === 'read') : ALL.filter(L => L.t === t);
+  render('topic', `
+    <div class="lbar"><button class="x" id="x">←</button><h2 style="margin:0;flex:1">${key === 'abc' ? '🔤 Алфавит' : key === 'read' ? '📖 Учимся читать' : t.icon + ' ' + esc(t.title)}</h2><span class="chip">⭐ ${total(p)}</span></div>
+    <div class="grid" style="margin-top:14px">${list.map(L => lessonCard(p, L)).join('')}</div>`);
+  $('#x').onclick = worldMap;
+  wireCards();
 }
 
 /* ================= Рейтинг: все игроки, группы, напоминания ================= */
@@ -400,12 +520,21 @@ function alphabet(cur){
 /* ================= Урок ================= */
 let S = null;
 function startLesson(L){
+  if (L.kind === 'trace') return startTrace();
   const set = L.set;
   let listen = shuffle([...set, ...set]);
   for (let k = 0; k < 30 && listen.some((x, j) => j && x === listen[j - 1]); k++) listen = shuffle(listen);
   const T = L.kind === 'abc' ? ['intro', 'listen', 'missing', 'pairs'] : ['wintro', 'wlisten', 'wread', 'wpairs'];
   const fam = x => set.filter(o => o.fam === x.fam);
-  const steps = L.kind === 'read' ? [
+  const steps = L.kind === 'gram' ? [
+    ...set.map(x => ({t: 'gintro', x})),
+    ...shuffle(set).map(x => ({t: 'wlisten', x})),
+    ...shuffle(set).map(x => ({t: 'gfill', x})),
+    {t: 'speak', x: pick(set)},
+  ] : L.kind === 'rhyme' ? [
+    {t: 'rhyme', r: L.r},
+    ...shuffle(L.r.lines).slice(0, 3).map(line => ({t: 'rgap', line, r: L.r})),
+  ] : L.kind === 'read' ? [
     ...set.map(x => ({t: 'rintro', x})),
     ...shuffle(set).map(x => ({t: 'rread', x})),
     ...shuffle(set).map(x => ({t: 'rfirst', x})),
@@ -428,11 +557,12 @@ function startLesson(L){
     ...set.map(x => ({t: T[0], x})),
     ...listen.map(x => ({t: T[1], x})),
     ...shuffle(set).map(x => ({t: T[2], x})),
+    ...(L.kind === 'abc' ? set.map(x => ({t: 'trace', x})) : []),                                           // обвести букву пальцем
     ...(L.kind === 'word' ? shuffle(set).filter(canBuild).map(x => ({t: 'wbuild', x, model: true})) : []),   // собрать слово по образцу
     ...(L.kind === 'word' ? [{t: 'speak', x: pick(set)}] : []),                                               // сказать слово самому
     {t: T[3], set},
   ];
-  const pool = L.kind === 'phrase' || L.kind === 'read' || L.kind === 'dialog' ? set : L.kind === 'story' ? [] : L.kind === 'abc' ? LETTERS.slice(0, ABC_RANGES[L.i][1]) : L.t.lessons.slice(0, L.i + 1).flat();
+  const pool = ['phrase', 'read', 'dialog', 'gram'].includes(L.kind) ? set : L.kind === 'story' || L.kind === 'rhyme' ? [] : L.kind === 'abc' ? LETTERS.slice(0, ABC_RANGES[L.i][1]) : L.t.lessons.slice(0, L.i + 1).flat();
   S = {L, mode: 'lesson', steps, pos: 0, mistakes: 0, pool, missed: new Set()};
   step();
 }
@@ -770,6 +900,130 @@ STEPS.speak = st => {
   task('speak', x.en);
 };
 
+/* ---------- прописи: обвести букву пальцем ---------- */
+/* Пропись из 6 знакомых букв: большие и маленькие по очереди */
+function startTrace(){
+  const p = me(), n = abcDone(p); if (!n) return home();
+  const known = LETTERS.slice(0, ABC_RANGES[n - 1][1]);
+  const steps = shuffle(known).slice(0, 6).map((x, i) => ({t: 'trace', x, lo: i % 2 === 1}));
+  S = {L: {id: 'trace', kind: 'trace'}, mode: 'lesson', steps, pos: 0, mistakes: 0, pool: [], missed: new Set()};
+  step();
+}
+STEPS.trace = st => {
+  const x = st.x, ch = st.lo ? x.l : x.u;
+  frame(`
+    <p class="task">Обведи букву пальцем ✍️</p>
+    <div class="tracebox"><canvas id="tc" width="480" height="480"></canvas></div>
+    <p class="sub" id="th" style="margin:8px 0 0">Веди по серой букве — от точки к точке</p>
+    <div class="row" style="margin-top:10px"><button class="btn round ghost" id="clr">↺</button><button class="btn round ghost" id="snd">🔊</button><button class="btn" id="go">Готово ✓</button></div>`);
+  $('#snd').onclick = () => say(x.u);
+  task('trace', x.u);
+  const cv = $('#tc'), ctx = cv.getContext && cv.getContext('2d');
+  if (!ctx){ $('#clr').remove(); $('#go').onclick = advance; return }
+  const N = cv.width, W = N * .085, font = `900 ${Math.round(N * (st.lo ? .74 : .7))}px Nunito, "Arial Rounded MT Bold", Arial, sans-serif`;
+  const glyph = (c, how) => { c.font = font; c.textAlign = 'center'; c.textBaseline = 'alphabetic'; how(c, N / 2, N * .76) };
+  /* маска буквы и маска «с запасом» — чтобы не требовать идеальной точности */
+  const mk = () => { const m = document.createElement('canvas'); m.width = m.height = N; return m };
+  const inner = mk(), wide = mk(), ic = inner.getContext('2d'), wc = wide.getContext('2d');
+  glyph(ic, (c, a, b) => c.fillText(ch, a, b));
+  glyph(wc, (c, a, b) => { c.lineWidth = W * 1.6; c.lineJoin = 'round'; c.strokeText(ch, a, b); c.fillText(ch, a, b) });
+  const id = ic.getImageData(0, 0, N, N).data, wd = wc.getImageData(0, 0, N, N).data;
+  const at = (d, px, py) => d[((py | 0) * N + (px | 0)) * 4 + 3] > 100;
+  const pts = []; for (let py = 6; py < N; py += 12) for (let px = 6; px < N; px += 12) if (at(id, px, py)) pts.push([px, py]);
+  const lines = []; let cur = null, tries = 0, done = false;
+  const draw = () => {
+    ctx.clearRect(0, 0, N, N);
+    glyph(ctx, (c, a, b) => { c.fillStyle = '#eceefa'; c.fillText(ch, a, b); c.setLineDash([3, 14]); c.lineWidth = 5; c.lineCap = 'round'; c.strokeStyle = '#b9bfd3'; c.strokeText(ch, a, b); c.setLineDash([]) });
+    ctx.lineWidth = W; ctx.lineCap = ctx.lineJoin = 'round'; ctx.strokeStyle = done ? '#22c55e' : '#5b5bf0';
+    lines.forEach(l => { ctx.beginPath(); l.forEach(([a, b], i) => i ? ctx.lineTo(a, b) : ctx.moveTo(a, b)); if (l.length === 1) ctx.lineTo(l[0][0] + .1, l[0][1]); ctx.stroke() });
+  };
+  const pos = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * N / r.width, (e.clientY - r.top) * N / r.height] };
+  cv.onpointerdown = e => { if (done) return; e.preventDefault(); try { cv.setPointerCapture(e.pointerId) } catch(_){} cur = [pos(e)]; lines.push(cur); draw() };
+  cv.onpointermove = e => { if (!cur) return; e.preventDefault(); cur.push(pos(e)); draw() };
+  cv.onpointerup = cv.onpointercancel = () => { cur = null };
+  $('#clr').onclick = () => { if (done) return; lines.length = 0; draw() };
+  /* проверка: закрашена ли большая часть буквы и не слишком ли много мимо */
+  const check = () => {
+    const u = mk(), uc = u.getContext('2d');
+    uc.lineWidth = W * 1.15; uc.lineCap = uc.lineJoin = 'round';
+    lines.forEach(l => { uc.beginPath(); l.forEach(([a, b], i) => i ? uc.lineTo(a, b) : uc.moveTo(a, b)); if (l.length === 1) uc.lineTo(l[0][0] + .1, l[0][1]); uc.stroke() });
+    const ud = uc.getImageData(0, 0, N, N).data;
+    const cover = pts.length ? pts.filter(([a, b]) => at(ud, a, b)).length / pts.length : 1;
+    const all = lines.flat(), out = all.length ? all.filter(([a, b]) => a < 0 || b < 0 || a >= N || b >= N || !at(wd, a, b)).length / all.length : 1;
+    return cover >= .55 && out <= .3;
+  };
+  draw();
+  $('#go').onclick = () => {
+    if (done) return;
+    if (!lines.length){ buzz(); $('#th').textContent = 'Сначала обведи букву пальцем 👆'; return }
+    if (check() || tries >= 2){
+      done = true; draw(); ding(); petReact('ok'); say(x.u);
+      $('#th').textContent = tries >= 2 && !check() ? 'Хорошая попытка! Дальше получится лучше 💪' : 'Отлично! ✨';
+      later(advance, 1200);
+    } else {
+      tries++; buzz(); petReact('no');
+      $('#th').textContent = 'Обведи всю букву по серой линии — и ещё раз «Готово» 🙂';
+      lines.length = 0; draw();
+    }
+  };
+};
+
+/* ---------- грамматика: одно слово меняется ---------- */
+const gapRe = x => new RegExp('\\b' + x.gap.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b');
+STEPS.gintro = ({x}) => {
+  frame(`
+    <p class="task">Смотри, как меняется слово 👀</p>
+    <div class="bigem sm" id="em">${pic(x)}</div>
+    <p class="bigword phr" id="bw">${esc(x.en).replace(gapRe(x), m => `<b>${m}</b>`)}</p>
+    <p class="ruhint">${x.ru}</p>
+    <div class="row"><button class="btn round ghost" id="snd">🔊</button><button class="btn" id="go">Дальше →</button></div>`);
+  $('#em').onclick = $('#bw').onclick = $('#snd').onclick = () => say(x.en);
+  $('#go').onclick = advance;
+  task('gintro', x.en);
+};
+STEPS.gfill = ({x}) => {
+  const gap = filled => esc(x.en).replace(gapRe(x), m => `<u>${filled ? m : '&nbsp;&nbsp;&nbsp;'}</u>`);
+  frame(`
+    <p class="task">Какое слово пропущено?</p>
+    <div class="bigem sm" id="em">${pic(x)}</div>
+    <p class="bigword phr gap2" id="gp">${gap(false)}</p>
+    <p class="ruhint" style="margin:0">${x.ru}</p>
+    <div class="opts">${shuffle(x.opts).map(o => `<button class="opt word" data-k="${esc(o)}">${esc(o)}</button>`).join('')}</div>`);
+  $('#em').onclick = () => say(x.en);
+  wireOptions({...x, k: x.gap}, () => { $('#gp').innerHTML = gap(true); later(() => say(x.en), 300); later(advance, 1600) });
+  task('gfill');
+};
+
+/* ---------- стишки: строки подсвечиваются, пока звучат ---------- */
+STEPS.rhyme = ({r}) => {
+  frame(`
+    <p class="task">🎵 ${esc(r.title)}</p>
+    <div class="bigem sm">${r.icon}</div>
+    <div class="rhyme">${r.lines.map((l, i) => `<button class="rl" data-i="${i}">${esc(l.en)}<small>${esc(l.ru)}</small></button>`).join('')}</div>
+    <div class="row" style="margin-top:14px"><button class="btn round ghost" id="snd">▶️</button><button class="btn" id="go">Дальше →</button></div>`);
+  const hl = i => () => $$('.rl').forEach((b, j) => b.classList.toggle('on', j === i));
+  const sing = () => [...r.lines.flatMap((l, i) => [hl(i), l.en, 450]), hl(-1)];
+  $$('.rl').forEach(b => b.onclick = () => { const i = +b.dataset.i; say(hl(i), r.lines[i].en, hl(-1)) });
+  $('#snd').onclick = () => say(...sing());
+  $('#go').onclick = advance;
+  task('rhyme', ...sing());
+};
+STEPS.rgap = ({line, r}) => {
+  const words = line.en.match(/[A-Za-z']+/g), cand = words.filter(w => w.length >= 3);
+  const word = pick(cand.length ? cand : words), at = line.en.indexOf(word);
+  const others = shuffle([...new Set(r.lines.filter(l => l !== line).flatMap(l => l.en.match(/[A-Za-z']+/g)).filter(w => w.length >= 3 && w.toLowerCase() !== word.toLowerCase()))]).slice(0, 2);
+  const show = filled => esc(line.en.slice(0, at)) + `<u>${filled ? esc(word) : '&nbsp;&nbsp;&nbsp;&nbsp;'}</u>` + esc(line.en.slice(at + word.length));
+  frame(`
+    <p class="task">Какое слово потерялось?</p>
+    <p class="bigword phr gap2" id="gp">${show(false)}</p>
+    <p class="ruhint" style="margin:0">${esc(line.ru)}</p>
+    <div class="center" style="margin-top:10px"><button class="btn round ghost" id="snd">🔊</button></div>
+    <div class="opts">${shuffle([word, ...others]).map(o => `<button class="opt word" data-k="${esc(o)}">${esc(o)}</button>`).join('')}</div>`);
+  $('#snd').onclick = () => say(line.en);
+  wireOptions({k: word, en: word}, () => { $('#gp').innerHTML = show(true); later(() => say(line.en), 300); later(advance, 1900) });
+  task('rgap', line.en);
+};
+
 /* ---------- собери слово из букв или фразу из слов ---------- */
 const canBuild = x => { const n = x.en.replace(/[^a-z]/gi, '').length; return n >= 2 && n <= 8 };
 STEPS.wbuild = STEPS.pbuild = STEPS.dbuild = st => {
@@ -846,7 +1100,7 @@ function finish(){
   } else {
     stars = mode === 'exam' ? (S.mistakes <= 1 ? 3 : S.mistakes <= 3 ? 2 : 1) : (S.mistakes <= 1 ? 3 : S.mistakes <= 4 ? 2 : 1);
     p.stars[L.id] = Math.max(p.stars[L.id] || 0, stars);
-    got = stars * (mode === 'exam' ? 3 : 2); dayMark(p, 'l');
+    got = stars * (mode === 'exam' ? 3 : 2); lessonDone(p);
     if (mode === 'lesson' && noReview(L)){}                        // фразы, чтение, разговоры и истории в повторение не попадают
     else if (mode === 'lesson') L.set.forEach(x => { const k = revKey(x); if (!m[k] || S.missed.has(k)) m[k] = [0, tomorrow] });
     else S.missed.forEach(k => { m[k] = [0, tomorrow] });   // в испытании ошибся — слово вернётся в повторение
@@ -854,7 +1108,7 @@ function finish(){
     big = mode === 'exam'
       ? `<div class="bigem medal">${['', '🥉', '🥈', '🥇'][stars]}</div>${stars < 3 ? '<p class="sub" style="margin:0">Золото — если ошибиться не больше одного раза</p>' : ''}`
       : `<div class="stars">${[1, 2, 3].map(n => `<span class="${n <= stars ? '' : 'off'}">⭐</span>`).join('')}</div>`;
-    again = mode === 'exam' ? () => startExam(L) : () => startLesson(L);
+    again = mode === 'exam' ? () => startExam(L) : L.kind === 'trace' ? startTrace : () => startLesson(L);
   }
   const pay = earnWork(p, got, true), grownTo = careTick(p);
   saveRev(p); saveStat(p); touchStreak(p); save();

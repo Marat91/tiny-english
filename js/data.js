@@ -133,6 +133,11 @@ const TOPICS = [
     [['up','вверх','⬆️'], ['down','вниз','⬇️'], ['left','налево','⬅️'], ['right','направо','➡️']],
     [['stop','стоп','🛑'], ['go','иди','🟢'], ['here','здесь','📍'], ['there','там','👉']],
   ]},
+  /* Праздничная тема: открыта во время новогоднего события (и потом — если её начали). См. NY ниже */
+  {id:'newyear', title:'Новый год', icon:'🎄', holiday:true, lessons:[
+    [['Christmas tree','ёлка','🎄'], ['gift','подарок','🎁'], ['Santa','Дед Мороз','🎅'], ['snowman','снеговик','⛄']],
+    [['snowflake','снежинка','❄️'], ['candle','свеча','🕯️'], ['bell','колокольчик','🔔'], ['reindeer','олень','🦌']],
+  ]},
 ].map(t => ({...t, lessons: t.lessons.map(set => set.map(w))}));
 
 /* Фразы: короткие предложения из уже знакомых слов. Урок открывается, когда пройдена его тема.
@@ -160,6 +165,7 @@ const PHRASES = [
   {topic:'days',    pat:'Today is …',   set:[['Today is Monday','Сегодня понедельник'], ['Today is Friday','Сегодня пятница'], ['Today is Saturday','Сегодня суббота'], ['Today is Sunday','Сегодня воскресенье']]},
   {topic:'time',    pat:'I like …',     set:[['I like winter','Я люблю зиму'], ['I like spring','Я люблю весну'], ['I like summer','Я люблю лето'], ['I like autumn','Я люблю осень']]},
   {topic:'adjectives', pat:'It is …',   set:[['It is big','Он большой'], ['It is small','Он маленький'], ['It is fast','Он быстрый'], ['It is slow','Он медленный']]},
+  {topic:'newyear', pat:'I see a …',  set:[['I see a snowman','Я вижу снеговика'], ['I see a reindeer','Я вижу оленя'], ['I see a snowflake','Я вижу снежинку'], ['I have a gift','У меня есть подарок']]},
   {topic:'directions', pat:'Look …',    set:[['Look up','Посмотри вверх'], ['Look down','Посмотри вниз'], ['Look left','Посмотри налево'], ['Look right','Посмотри направо']]},
 ].map(ph => ({...ph, set: ph.set.map(([en, ru]) => { const wn = en.split(' ').pop(); return {...WORDS[wn], k: en, en, ru, w: wn} })}));
 
@@ -266,6 +272,17 @@ const STORIES = [
     ['Where do I go?', 'Куда я иду?', ['school', 'house', 'sea']],
     ['What do I read?', 'Что я читаю?', ['book', 'pen', 'bag']],
   ]},
+  {after:'newyear', title:'New Year', ru:'Новый год', icon:'🎄', pages:[
+    ['It is winter', 'Сейчас зима', '☃️'],
+    ['I see a big Christmas tree', 'Я вижу большую ёлку', '🎄'],
+    ['Santa has a gift for me', 'У Деда Мороза есть подарок для меня', '🎅🎁'],
+    ['It is a teddy bear!', 'Это мишка!', '🧸'],
+    ['Happy New Year!', 'С Новым годом!', '🎉'],
+  ], quiz:[
+    ['What is big?', 'Что большое?', ['Christmas tree', 'snowman', 'bell']],
+    ['Who has a gift?', 'У кого подарок?', ['Santa', 'teacher', 'baby']],
+    ['What is the gift?', 'Какой подарок?', ['teddy bear', 'robot', 'kite']],
+  ]},
   {after:'adjectives', title:'My birthday', ru:'Мой день рождения', icon:'🎂', pages:[
     ['Today is Sunday', 'Сегодня воскресенье', '🎉'],
     ['I am seven!', 'Мне семь!', '🎂'],
@@ -281,6 +298,94 @@ const STORIES = [
   pages: st.pages.map(([en, ru, e]) => ({en, ru, e})),
   quiz: st.quiz.map(([q, qru, opts]) => ({q, qru, opts: opts.map(o => WORDS[o]), x: WORDS[opts[0]]})),
 }));
+
+/* Новогоднее событие: с 1 декабря по 10 января. Адвент-календарь — окошко на каждый день декабря,
+   открывается, если в этот день пройден урок. В магазине появляются праздничные вещи (ny:true в SHOP). */
+const NY = {from: [11, 1], to: [0, 10], bones: 5, big: {10: 'snowman', 20: 'xbell', 31: 'xtree'}};
+
+/* «Питомец, сделай!»: команды на слух. Если перед командой не сказали please — делать не надо. */
+const COMMANDS = [
+  {en:'jump', ru:'прыгай', e:'🦘', anim:'jump'}, {en:'sit', ru:'сидеть', e:'🪑', anim:'sad'},
+  {en:'run', ru:'беги', e:'🏃', anim:'runx'},     {en:'sleep', ru:'спи', e:'😴', anim:'nap'},
+  {en:'dance', ru:'танцуй', e:'💃', anim:'dance'}, {en:'sing', ru:'пой', e:'🎤', anim:'jump'},
+  {en:'swim', ru:'плыви', e:'🏊', anim:'jump'},    {en:'eat', ru:'ешь', e:'🍽️', anim:'jump'},
+  {en:'touch your nose', ru:'потрогай нос', e:'👃', anim:'jump'}, {en:'touch your ear', ru:'потрогай ухо', e:'👂', anim:'jump'},
+  {en:'look up', ru:'посмотри вверх', e:'⬆️', anim:'jump'},       {en:'look down', ru:'посмотри вниз', e:'⬇️', anim:'sad'},
+];
+
+/* Грамматика на картинках. Открывается после темы after. gap — слово, которое ребёнок вставляет, opts — варианты. */
+const GRAMMAR = [
+  {after:'numbers', title:'Один и много', icon:'🐱🐱', set:[
+    ['one cat', 'одна кошка', '🐱', 'cat', ['cat', 'cats']],
+    ['three cats', 'три кошки', '🐱🐱🐱', 'cats', ['cat', 'cats']],
+    ['one dog', 'одна собака', '🐶', 'dog', ['dog', 'dogs']],
+    ['two dogs', 'две собаки', '🐶🐶', 'dogs', ['dog', 'dogs']],
+    ['one apple', 'одно яблоко', '🍎', 'apple', ['apple', 'apples']],
+    ['four apples', 'четыре яблока', '🍎🍎🍎🍎', 'apples', ['apple', 'apples']],
+  ]},
+  {after:'food', title:'a или an', icon:'🍎', set:[
+    ['a cat', 'кошка', '🐱', 'a', ['a', 'an']],
+    ['an apple', 'яблоко', '🍎', 'an', ['a', 'an']],
+    ['a ball', 'мяч', '⚽', 'a', ['a', 'an']],
+    ['an egg', 'яйцо', '🥚', 'an', ['a', 'an']],
+    ['a banana', 'банан', '🍌', 'a', ['a', 'an']],
+    ['an orange', 'апельсин', '🍊', 'an', ['a', 'an']],
+  ]},
+  {after:'family', title:'he или she', icon:'👦👧', set:[
+    ['He is my dad', 'Он мой папа', '👨', 'He', ['He', 'She']],
+    ['She is my mom', 'Она моя мама', '👩', 'She', ['He', 'She']],
+    ['He is my brother', 'Он мой брат', '👦', 'He', ['He', 'She']],
+    ['She is my sister', 'Она моя сестра', '👧', 'She', ['He', 'She']],
+    ['She is my grandma', 'Она моя бабушка', '👵', 'She', ['He', 'She']],
+    ['He is my grandpa', 'Он мой дедушка', '👴', 'He', ['He', 'She']],
+  ]},
+  {after:'animals', title:'This или these', icon:'👉', set:[
+    ['This is a cat', 'Это кошка', '🐱', 'This is', ['This is', 'These are']],
+    ['These are cats', 'Это кошки', '🐱🐱🐱', 'These are', ['This is', 'These are']],
+    ['This is a bird', 'Это птица', '🐦', 'This is', ['This is', 'These are']],
+    ['These are birds', 'Это птицы', '🐦🐦', 'These are', ['This is', 'These are']],
+  ]},
+].map((g, i) => ({...g, set: g.set.map(([en, ru, pic, gap, opts]) => ({...w([en, ru, pic]), k: 'g:' + i + ':' + en, gap, opts}))}));
+
+/* Стишки: простые рифмовки из знакомых слов. Строки подсвечиваются, пока звучат. Открывается после темы after. */
+const RHYMES = [
+  {after:'hello', title:'Hello!', icon:'👋', lines:[
+    ['Hello, hello, how are you?', 'Привет, привет, как дела?'],
+    ['I am happy, how are you?', 'Мне весело, а тебе?'],
+    ['Hello, hello, one, two, three', 'Привет, привет, раз, два, три'],
+    ['Come and play a game with me!', 'Приходи поиграть со мной!'],
+  ]},
+  {after:'colors', title:'Colors', icon:'🌈', lines:[
+    ['Red and yellow, green and blue', 'Красный, жёлтый, зелёный, синий'],
+    ['I like colors, so do you!', 'Я люблю цвета, и ты тоже!'],
+    ['Purple, orange, black and white', 'Фиолетовый, оранжевый, чёрный, белый'],
+    ['Colors, colors, day and night!', 'Цвета, цвета днём и ночью!'],
+  ]},
+  {after:'animals', title:'Animals', icon:'🐾', lines:[
+    ['A cat, a dog, a bird, a frog', 'Кошка, собака, птица, лягушка'],
+    ['A little fish, a big brown dog', 'Маленькая рыбка, большая коричневая собака'],
+    ['A cow, a horse, a happy bear', 'Корова, лошадь, весёлый медведь'],
+    ['Animals, animals everywhere!', 'Животные, животные повсюду!'],
+  ]},
+  {after:'numbers', title:'Numbers', icon:'🔢', lines:[
+    ['One, two, three, four, five', 'Один, два, три, четыре, пять'],
+    ['I can swim and I can dive', 'Я умею плавать и нырять'],
+    ['Six, seven, eight, nine, ten', 'Шесть, семь, восемь, девять, десять'],
+    ['Let us count it all again!', 'Давай посчитаем ещё раз!'],
+  ]},
+  {after:'body', title:'Touch your nose', icon:'👃', lines:[
+    ['Touch your nose and touch your ear', 'Потрогай нос и потрогай ухо'],
+    ['Touch your mouth, now I am here', 'Потрогай рот — а вот и я'],
+    ['Hands up high and hands down low', 'Руки вверх и руки вниз'],
+    ['Jump, jump, jump, and here we go!', 'Прыг, прыг, прыг — поехали!'],
+  ]},
+  {after:'time', title:'Good night', icon:'🌙', lines:[
+    ['The sun goes down, the moon is bright', 'Солнце садится, луна светит'],
+    ['I see a star, it is the night', 'Я вижу звезду, наступила ночь'],
+    ['Good night, mom, and good night, dad', 'Спокойной ночи, мама, спокойной ночи, папа'],
+    ['Now I sleep in my warm bed', 'Теперь я сплю в тёплой кроватке'],
+  ]},
+].map(r => ({...r, lines: r.lines.map(([en, ru]) => ({en, ru}))}));
 
 /* Задания, которые произносятся по-русски перед английским словом (один раз за урок на каждый вид задания).
    Ключ — вид задания в игре. После изменения пересоберите озвучку: node tools/build-audio.mjs */
@@ -316,6 +421,13 @@ const HINTS = {
   spage:   'Послушай историю. Нажимай «Дальше», чтобы листать.',
   squiz:   'А теперь вопросы по истории!',
   speak:   'Нажми на микрофон и скажи сам. Потом послушай себя.',
+  trace:   'Обведи букву пальцем. Веди по серой линии.',
+  gintro:  'Посмотри и послушай, как меняется слово.',
+  gfill:   'Какое слово пропущено? Выбери его.',
+  rhyme:   'Послушай стишок и повторяй за мной.',
+  rgap:    'Какое слово потерялось в стишке?',
+  g_c:     'Слушай команды! Если сказали please, нажми, что сделать. Если нет — нажми «Не делать».',
+  advent:  'Новогодний календарь! Пройди урок, чтобы открыть окошко.',
 };
 
 /* Похвала в конце урока: 3, 2 и 1 звезда */
@@ -368,6 +480,12 @@ const SHOP = [
   {id:'bike',    type:'fun',  en:'bike',       ru:'велосипед',icon:'🚲', price:80,  yard:true,       rare:true},
   {id:'fountain',type:'fun',  en:'fountain',   ru:'фонтан',   icon:'⛲', price:100, yard:true,       rare:true},
   {id:'castle',  type:'fun',  en:'castle',     ru:'замок',    icon:'🏰', price:120, yard:true,       rare:true},
+  {id:'xtree',   type:'fun',  en:'Christmas tree', ru:'ёлка', icon:'🎄', price:50,  pos:[48,22,2.2], ny:true},
+  {id:'xgift',   type:'fun',  en:'gift',       ru:'подарок',  icon:'🎁', price:15,  pos:[56,1,.9],   ny:true},
+  {id:'xbell',   type:'fun',  en:'bell',       ru:'колокольчик', icon:'🔔', price:20, pos:[70,80,.9], ny:true},
+  {id:'xcandle', type:'fun',  en:'candle',     ru:'свеча',    icon:'🕯️', price:15,  pos:[12,40,.8],  ny:true},
+  {id:'snowman', type:'fun',  en:'snowman',    ru:'снеговик', icon:'⛄', price:40,  yard:true,       ny:true},
+  {id:'xsanta',  type:'fun',  en:'Santa',      ru:'Дед Мороз', icon:'🎅', price:80, pos:[78,22,1.3], ny:true},
 ];
 /* Еда: f — сытость, m — настроение, cap — выше какого уровня сытость не поднимет */
 const FOODS = [
@@ -411,7 +529,7 @@ const FUND = [
 ];
 /* Английские слова и фразы, которых нет в уроках, но они звучат в игре (записываются tools/build-audio.mjs) */
 const EXTRA = ['bowl', 'leash', 'books', 'shop', 'star', 'guitar', 'tent', 'rocket', 'boat', 'bike', 'fountain', 'castle',
-  'sit', 'jump', 'good dog', 'yummy', "let's go for a walk", 'good night', ...CARDS.map(c => c.en)];
+  'sit', 'jump', 'good dog', 'Happy New Year', ...COMMANDS.flatMap(c => [c.en, 'please ' + c.en]), 'yummy', "let's go for a walk", 'good night', ...CARDS.map(c => c.en)];
 const WALLS = [
   {id:'',       ru:'обычные',                   price:0,  css:'linear-gradient(#fdf1dc,#f8e3c0)', dot:'#f8e3c0'},
   {id:'blue',   en:'blue',   ru:'синие',        price:30, css:'linear-gradient(#cfe6ff,#a9d0ff)', dot:'#3b82f6'},

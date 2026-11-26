@@ -23,12 +23,13 @@ function games(){
       ${card('b', '🎈', 'Шарики', 'Лопни шарик с тем, что услышишь', hi.b ? 'рекорд ' + hi.b : '')}
       ${card('y', '✅', 'Да или нет', 'Картинка и слово совпадают?', hi.y ? 'рекорд ' + hi.y : '')}
       ${card('m', '🧠', 'Пары на время', 'Найди все пары как можно быстрее', hi.m ? 'рекорд ' + hi.m + ' с' : '')}
+      ${card('c', '🐶', 'Питомец, сделай!', 'Слушай команду и покажи, что делать', hi.c ? 'рекорд ' + hi.c : '')}
       ${card('d', '⚔️', 'Дуэль', 'Одинаковые вопросы — кто ответит лучше?', '')}
     </div>`);
   $('#x').onclick = home;
   $$('.gcard').forEach(b => b.onclick = () => {
     if (!ok) return buzz();
-    ({b: gameBalloons, y: gameYesNo, m: gameMemory, d: duel})[b.dataset.g]();
+    ({b: gameBalloons, y: gameYesNo, m: gameMemory, c: gameCommands, d: duel})[b.dataset.g]();
   });
 }
 
@@ -185,6 +186,53 @@ function gameMemory(){
       setTimeout(() => { a.classList.remove('open'); c.classList.remove('open'); lock = false }, 800);
     }
   });
+}
+
+/* ---------- Питомец, сделай! ---------- */
+/* Звучит команда — нажми картинку. После 5 верных начинается хитрость: без please делать нельзя. */
+function gameCommands(){
+  const p = me(), g = G = {score: 0, lock: false, cmd: null, please: true};
+  render('game', `
+    ${gameBar('🐶')}
+    <div class="stage gstage">
+      <div class="row"><button class="btn round" id="snd">🔊</button><p class="task" style="margin:0" id="tk">Что сказали сделать?</p></div>
+      <div class="center gpet" id="gp">${myPetHTML(p, 'mid')}</div>
+      <p class="sub" id="hint" style="min-height:1.4em;margin:0"></p>
+      <div class="opts cmds" id="ops"></div>
+      <div class="center" style="margin-top:12px"><button class="btn ghost" id="no" hidden>✋ Не делать</button></div>
+    </div>`);
+  $('#x').onclick = () => { G = null; hush(); games() };
+  const text = () => (g.please ? 'please ' : '') + g.cmd.en;
+  $('#snd').onclick = () => say(text());
+  const act = anim => { const el = $('.gpet .pet'); if (!el) return; el.classList.remove('jump', 'sad', 'dance', 'runx', 'nap'); void el.offsetWidth; el.classList.add(anim); setTimeout(() => el.classList.remove(anim), 1500) };
+  const next = first => {
+    const tricky = g.score >= 5;
+    g.cmd = pick(COMMANDS.filter(c => c !== g.cmd)); g.please = !tricky || Math.random() < .6; g.lock = false;
+    $('#no').hidden = !tricky;
+    $('#tk').textContent = tricky ? 'Делай, только если сказали please!' : 'Что сказали сделать?';
+    $('#hint').textContent = '';
+    const opts = shuffle([g.cmd, ...shuffle(COMMANDS.filter(c => c !== g.cmd)).slice(0, 3)]);
+    $('#ops').innerHTML = opts.map(c => `<button class="opt" data-c="${esc(c.en)}">${c.e}</button>`).join('');
+    $$('#ops .opt').forEach(b => b.onclick = () => ans(b, b.dataset.c));
+    first ? say('ru:g_c', 300, text()) : say(text());
+  };
+  const ans = (b, en) => {
+    if (g.lock || !gAlive(g)) return;
+    g.lock = true;
+    const ok = en === null ? !g.please : g.please && en === g.cmd.en;
+    if (ok){
+      g.score++; $('#sc').textContent = '🐶 ' + g.score; ding();
+      if (b) b.classList.add('ok');
+      if (en) act(g.cmd.anim); else $('#hint').textContent = 'Верно! Не сказали please 😉';
+    } else {
+      buzz(); if (b) b.classList.add('no');
+      $('#hint').textContent = !g.please ? 'Не сказали please — делать было не нужно!' : `Это было: ${g.cmd.en} — ${g.cmd.ru}`;
+    }
+    setTimeout(() => { if (gAlive(g)) next() }, ok ? 900 : 1700);
+  };
+  $('#no').onclick = () => ans($('#no'), null);
+  next(true);
+  gameClock(g, 50, () => gameOver('c', g.score, gameCommands));
 }
 
 /* ================= Дуэль ================= */
