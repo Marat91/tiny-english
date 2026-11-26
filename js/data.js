@@ -153,6 +153,50 @@ const TOPICS = [
     [['piano','пианино','🎹'], ['guitar','гитара','🎸'], ['violin','скрипка','🎻'], ['trumpet','труба','🎺']],
     [['song','песня','🎵'], ['microphone','микрофон','🎤'], ['saxophone','саксофон','🎷'], ['radio','радио','📻']],
   ]},
+  {id:'vacation', title:'Отпуск', icon:'🏖️', lessons:[
+    [['beach','пляж','🏖️'], ['suitcase','чемодан','🧳'], ['ticket','билет','🎫'], ['hotel','гостиница','🏨']],
+    [['passport','паспорт','🛂'], ['sunglasses','солнечные очки','🕶️'], ['swimsuit','купальник','🩱'], ['camera','фотоаппарат','📷']],
+  ]},
+  {id:'pets', title:'Домашние питомцы', icon:'🐹', lessons:[
+    [['hamster','хомяк','🐹'], ['parrot','попугай','🦜'], ['rabbit','кролик','🐰'], ['turtle','черепаха','🐢']],
+    [['kitten','котёнок','🐈'], ['puppy','щенок','🐕'], ['mouse','мышка','🐁'], ['goldfish','золотая рыбка','🐠']],
+  ]},
+  {id:'farm', title:'Ферма', icon:'🚜', lessons:[
+    [['pig','свинья','🐷'], ['sheep','овца','🐑'], ['goat','коза','🐐'], ['chicken','курица','🐔']],
+    [['duck','утка','🦆'], ['rooster','петух','🐓'], ['tractor','трактор','🚜'], ['barn','сарай','🛖']],
+  ]},
+  {id:'ocean', title:'Море', icon:'🐬', lessons:[
+    [['shark','акула','🦈'], ['octopus','осьминог','🐙'], ['dolphin','дельфин','🐬'], ['crab','краб','🦀']],
+    [['whale','кит','🐳'], ['seal','тюлень','🦭'], ['shrimp','креветка','🦐'], ['penguin','пингвин','🐧']],
+  ]},
+  {id:'garden', title:'Сад и огород', icon:'🌻', lessons:[
+    [['sunflower','подсолнух','🌻'], ['rose','роза','🌹'], ['tulip','тюльпан','🌷'], ['leaf','листик','🍃']],
+    [['mushroom','гриб','🍄'], ['corn','кукуруза','🌽'], ['pumpkin','тыква','🎃'], ['onion','лук','🧅']],
+  ]},
+  {id:'shapes', title:'Фигуры', icon:'🔺', lessons:[
+    [['circle','круг','⚪'], ['square','квадрат','🟥'], ['triangle','треугольник','🔺'], ['heart','сердце','❤️']],
+    [['diamond','ромб','🔷'], ['oval','овал','🥚'], ['line','линия','➖'], ['dot','точка','🔴']],
+  ]},
+  {id:'fastfood', title:'Вкусняшки', icon:'🍕', lessons:[
+    [['pizza','пицца','🍕'], ['burger','бургер','🍔'], ['sandwich','бутерброд','🥪'], ['pasta','макароны','🍝']],
+    [['rice','рис','🍚'], ['cookie','печенье','🍪'], ['ice cream','мороженое','🍨'], ['chocolate','шоколад','🍫']],
+  ]},
+  {id:'bathroom', title:'Ванная', icon:'🛁', lessons:[
+    [['soap','мыло','🧼'], ['toothbrush','зубная щётка','🪥'], ['shower','душ','🚿'], ['toilet','туалет','🚽']],
+    [['mirror','зеркало','🪞'], ['sponge','губка','🧽'], ['shampoo','шампунь','🧴'], ['bubbles','пузыри','🫧']],
+  ]},
+  {id:'wardrobe', title:'Аксессуары', icon:'👓', lessons:[
+    [['gloves','перчатки','🧤'], ['boots','сапоги','👢'], ['shorts','шорты','🩳'], ['tie','галстук','👔']],
+    [['sandals','сандалии','🩴'], ['glasses','очки','👓'], ['ring','кольцо','💍'], ['handbag','сумочка','👜']],
+  ]},
+  {id:'space', title:'Космос', icon:'🪐', lessons:[
+    [['planet','планета','🪐'], ['astronaut','космонавт','🧑‍🚀'], ['comet','комета','☄️'], ['Earth','Земля','🌍']],
+    [['alien','инопланетянин','👽'], ['telescope','телескоп','🔭'], ['satellite','спутник','🛰️'], ['UFO','НЛО','🛸']],
+  ]},
+  {id:'fairytale', title:'Сказка', icon:'🧚', lessons:[
+    [['princess','принцесса','👸'], ['prince','принц','🤴'], ['dragon','дракон','🐉'], ['castle','замок','🏰']],
+    [['wizard','волшебник','🧙'], ['fairy','фея','🧚'], ['unicorn','единорог','🦄'], ['magic wand','волшебная палочка','🪄']],
+  ]},
   /* Праздничная тема: открыта во время новогоднего события (и потом — если её начали). См. NY ниже */
   {id:'newyear', title:'Новый год', icon:'🎄', holiday:true, lessons:[
     [['Christmas tree','ёлка','🎄'], ['gift','подарок','🎁'], ['Santa','Дед Мороз','🎅'], ['snowman','снеговик','⛄']],
@@ -191,6 +235,17 @@ const PHRASES = [
   {topic:'insects', pat:'Look, a …',    set:[['Look, a bee','Смотри, пчела'], ['Look, a butterfly','Смотри, бабочка'], ['Look, a ladybug','Смотри, божья коровка'], ['Look, a spider','Смотри, паук']]},
   {topic:'kitchen', pat:'I need a …',   set:[['I need a spoon','Мне нужна ложка'], ['I need a fork','Мне нужна вилка'], ['I need a plate','Мне нужна тарелка'], ['I need a cup','Мне нужна чашка']]},
   {topic:'music',   pat:'I play the …', set:[['I play the piano','Я играю на пианино'], ['I play the guitar','Я играю на гитаре'], ['I play the violin','Я играю на скрипке'], ['I play the trumpet','Я играю на трубе']]},
+  {topic:'vacation', pat:'Pack the …',  set:[['Pack the camera','Положи в чемодан фотоаппарат'], ['Pack the sunglasses','Положи солнечные очки'], ['Pack the swimsuit','Положи купальник'], ['Pack the passport','Положи паспорт']]},
+  {topic:'pets',    pat:'My pet is a …', set:[['My pet is a hamster','Мой питомец — хомяк'], ['My pet is a parrot','Мой питомец — попугай'], ['My pet is a rabbit','Мой питомец — кролик'], ['My pet is a turtle','Мой питомец — черепаха']]},
+  {topic:'farm',    pat:'Feed the …',   set:[['Feed the pig','Покорми свинью'], ['Feed the sheep','Покорми овцу'], ['Feed the goat','Покорми козу'], ['Feed the duck','Покорми утку']]},
+  {topic:'ocean',   pat:'I can see a …', set:[['I can see a shark','Я вижу акулу'], ['I can see a dolphin','Я вижу дельфина'], ['I can see a crab','Я вижу краба'], ['I can see a penguin','Я вижу пингвина']]},
+  {topic:'garden',  pat:'I grow a …',   set:[['I grow a sunflower','Я выращиваю подсолнух'], ['I grow a rose','Я выращиваю розу'], ['I grow a pumpkin','Я выращиваю тыкву'], ['I grow an onion','Я выращиваю лук']]},
+  {topic:'shapes',  pat:'Draw a …',     set:[['Draw a circle','Нарисуй круг'], ['Draw a square','Нарисуй квадрат'], ['Draw a triangle','Нарисуй треугольник'], ['Draw a heart','Нарисуй сердце']]},
+  {topic:'fastfood',pat:'Can I have a …', set:[['Can I have a pizza','Можно мне пиццу?'], ['Can I have a burger','Можно мне бургер?'], ['Can I have a sandwich','Можно мне бутерброд?'], ['Can I have a cookie','Можно мне печенье?']]},
+  {topic:'bathroom',pat:'Where is the …', set:[['Where is the soap','Где мыло?'], ['Where is the toothbrush','Где зубная щётка?'], ['Where is the sponge','Где губка?'], ['Where is the mirror','Где зеркало?']]},
+  {topic:'wardrobe',pat:'Put on your …', set:[['Put on your gloves','Надень перчатки'], ['Put on your boots','Надень сапоги'], ['Put on your shorts','Надень шорты'], ['Put on your glasses','Надень очки']]},
+  {topic:'space',   pat:'I fly to the …', set:[['I fly to the planet','Я лечу на планету'], ['I fly to the comet','Я лечу к комете'], ['I fly to the satellite','Я лечу к спутнику'], ['I fly to the UFO','Я лечу к НЛО']]},
+  {topic:'fairytale',pat:'I am a …',    set:[['I am a princess','Я принцесса'], ['I am a prince','Я принц'], ['I am a wizard','Я волшебник'], ['I am a fairy','Я фея']]},
   {topic:'directions', pat:'Look …',    set:[['Look up','Посмотри вверх'], ['Look down','Посмотри вниз'], ['Look left','Посмотри налево'], ['Look right','Посмотри направо']]},
 ].map(ph => ({...ph, set: ph.set.map(([en, ru]) => { const wn = en.split(' ').pop(); return {...WORDS[wn], k: en, en, ru, w: wn} })}));
 

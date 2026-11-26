@@ -71,7 +71,7 @@ function gameSnow(){
   const pool = knownWordsOf(me()).filter(plainWord); if (pool.length < 3) return games();
   const g = G = {score: 0, round: 0, used: []};
   const word = () => {
-    if (!gAlive(g)) return;
+    if (G !== g) return;                                    // игру закрыли
     if (g.round >= 5) return gameOver('h', g.score, gameSnow);
     g.round++; g.x = pick(pool.filter(x => !g.used.includes(x)).length ? pool.filter(x => !g.used.includes(x)) : pool); g.used.push(g.x);
     g.w = g.x.en.toLowerCase(); g.open = new Set(); g.miss = 0; g.over = false;
@@ -155,7 +155,7 @@ function gameTeach(){
   const pool = knownWordsOf(me()); if (pool.length < 4) return games();
   const g = G = {score: 0, round: 0};
   const next = () => {
-    if (!gAlive(g)) return;
+    if (G !== g) return;                                    // игру закрыли
     if (g.round >= 8) return gameOver('t', g.score, gameTeach);
     g.round++; g.x = pick(pool); g.wrong = Math.random() < .5; g.said = g.wrong ? pick(pool.filter(o => o !== g.x)) : g.x; g.lock = false;
     render('game', `
