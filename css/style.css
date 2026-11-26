@@ -549,3 +549,51 @@ button.brow{width:100%;font:inherit;font-weight:800;font-size:clamp(16px,2.6vw,1
 .opts.cmds .opt{font-size:clamp(40px,9vw,60px);padding:14px 8px}
 /* план для родителей */
 .sel{font:inherit;font-weight:800;font-size:16px;padding:10px 12px;border-radius:14px;border:2px solid var(--line);background:#fff;max-width:100%}
+/* слова целиком и книжки */
+.sentence{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;max-width:560px;margin:10px auto 0}
+.sw-b,.bw{background:#fff;border:2.5px solid var(--line);border-radius:16px;padding:10px 14px;font:inherit;font-weight:900;font-size:clamp(22px,4.6vw,34px);color:var(--ink)}
+.sw-b.ok{background:var(--green-soft);border-color:var(--green)} .sw-b.no{background:var(--red-soft);border-color:var(--red);animation:shake .4s}
+.bookline{font-size:clamp(24px,5vw,38px);font-weight:900;line-height:1.7;margin:8px 0 12px}
+.bw{border:0;padding:0 3px;font-size:1em;background:none;border-radius:8px}
+.bw:active,.bw.hop{background:var(--p-soft);color:var(--p)}
+/* «Я вижу…» */
+.scene{position:relative;max-width:520px;aspect-ratio:4/3;margin:0 auto;border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;font-size:clamp(12px,3.6vw,20px)}
+.thing{position:absolute;transform:translate(-50%,-50%);line-height:1;z-index:2;pointer-events:none}
+.spy{position:absolute;transform:translate(-50%,-50%);font-size:1.7em;line-height:1;background:none;border:0;padding:4px;border-radius:50%}
+.spy.hi{background:rgba(255,201,60,.55);box-shadow:0 0 0 4px var(--yellow)}
+.spy.shake{animation:shake .4s}
+/* магазин и монетки */
+.who.seller{font-size:48px}
+.opts.one{grid-template-columns:1fr}
+.opts.three{grid-template-columns:repeat(3,1fr)}
+.opts.cmp{align-items:end}
+.opts.cmp .opt{font-size:clamp(34px,8vw,52px);min-height:150px;overflow:hidden}
+.purse{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;max-width:420px;margin:14px auto 0}
+.coin{font-size:clamp(30px,7vw,44px);background:#fff;border-radius:50%;aspect-ratio:1;box-shadow:var(--sh);border:0;transition:transform .2s,opacity .2s}
+.coin.used{opacity:.25;transform:scale(.8)}
+.paid{text-align:center;font-weight:900;font-size:20px;margin-top:10px}
+.pile{font-size:clamp(30px,7vw,44px);letter-spacing:4px;text-align:center;max-width:420px;margin:0 auto;line-height:1.3}
+/* часы */
+.clock{width:clamp(150px,40vw,210px);height:auto}
+.opts.three .clock{width:100%}
+/* противоположности */
+.opp{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:10px}
+.opp > span{font-size:28px}
+.oc{background:#fff;border:2.5px solid var(--line);border-radius:22px;padding:14px 18px;box-shadow:var(--sh);font:inherit;min-width:120px}
+.oc i{display:block;font-style:normal;font-size:clamp(50px,11vw,76px)}
+.oc b{display:block;font-size:clamp(22px,4.4vw,30px);color:var(--p)}
+.oc small{color:var(--muted);font-weight:700}
+/* моя история */
+.picks{justify-content:flex-start}
+.picks .chip{font-size:15px}
+.story-out{text-align:left;padding:16px 18px}
+.story-out p{font-weight:900;font-size:clamp(18px,3.6vw,24px);margin:4px 0}
+/* разговор */
+.review.chatb{border-color:#c9c6ff;margin-top:12px}
+.chatlog{max-height:52vh;overflow-y:auto;padding:6px 2px;margin-top:10px}
+.chatlog .talk{margin-bottom:10px}
+.tips{justify-content:flex-start;margin-top:8px}
+.tips .chip{font-size:15px}
+.chatin{display:flex;gap:8px;align-items:center;margin-top:10px}
+.chatin input{flex:1;min-width:0;font:inherit;font-weight:800;font-size:17px;padding:14px 16px;border-radius:20px;border:2.5px solid var(--line);background:#fff}
+.chatin .btn.round{width:52px;height:52px;font-size:22px;flex:none}

@@ -8,7 +8,10 @@ CREATE TABLE IF NOT EXISTS users (
   last_reminded TEXT,
   family        TEXT,                           -- устарело, заменено таблицей members
   public        INTEGER NOT NULL DEFAULT 1,     -- показывать ли в общем рейтинге
-  photo         TEXT                            -- ссылка на фото профиля Telegram
+  photo         TEXT,                           -- ссылка на фото профиля Telegram
+  weekly_on     INTEGER NOT NULL DEFAULT 1,     -- присылать ли отчёт за неделю
+  week          TEXT,                           -- последняя сводка за неделю из игры (JSON)
+  week_sent     TEXT                            -- местная дата отправки последнего отчёта
 );
 CREATE TABLE IF NOT EXISTS profiles (
   tg_id   INTEGER NOT NULL,
@@ -105,4 +108,12 @@ CREATE TABLE IF NOT EXISTS fund_parts (
   code TEXT NOT NULL, tg_id INTEGER NOT NULL, pid TEXT NOT NULL,
   name TEXT, n INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (code, tg_id, pid)
+);
+-- Дневные лимиты: разговор с питомцем и проверка произношения
+CREATE TABLE IF NOT EXISTS usage (
+  tg_id INTEGER NOT NULL,
+  day   TEXT NOT NULL,
+  kind  TEXT NOT NULL,
+  n     INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (tg_id, day, kind)
 );

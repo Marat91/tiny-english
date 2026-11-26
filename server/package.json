@@ -1,0 +1,11 @@
+{
+  "name": "tiny-english-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.14.0"
+  }
+}

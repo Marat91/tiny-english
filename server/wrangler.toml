@@ -1,6 +1,7 @@
 name = "tiny-english"
 main = "src/index.js"
 compatibility_date = "2026-01-01"
+compatibility_flags = ["nodejs_compat"]
 
 [vars]
 APP_URL = "https://marat91.github.io/tiny-english/"
@@ -17,3 +18,10 @@ database_id = "5743b834-75b4-4b38-9506-3eec08b6fa95"
 
 # Токен бота хранится как секрет и в этот файл не попадает:
 #   npx wrangler secret put BOT_TOKEN
+
+# Распознавание речи (Whisper) для проверки произношения и голоса в разговоре с питомцем
+[ai]
+binding = "AI"
+
+# Ключ Claude для разговора с питомцем — тоже секрет:
+#   npx wrangler secret put ANTHROPIC_API_KEY

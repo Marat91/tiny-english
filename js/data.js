@@ -180,7 +180,31 @@ const READ = [
    {fam:'ed', words:[['bed','кровать','🛏️'], ['red','красный','#ef4444'], ['sled','санки','🛷']]}],
   [{fam:'ug', words:[['bug','жук','🐛'], ['hug','обнимашки','🤗'], ['mug','кружка','☕']]},
    {fam:'un', words:[['sun','солнце','☀️'], ['run','бегать','🏃'], ['bun','булочка','🥯']]}],
-].map((fams, i) => fams.flatMap(f => f.words.map(x => ({...w(x), k: 'r:' + x[0], fam: f.fam, lesson: i}))));
+  /* часть 2: две буквы — один звук. head:'sh' — общее начало, fam — остаток слова */
+  [{head:'sh', words:[['ship','корабль','🚢'], ['shoe','туфля','👞'], ['sheep','овца','🐑'], ['shell','ракушка','🐚']]},
+   {head:'ch', words:[['chick','цыплёнок','🐥'], ['chair','стул','🪑'], ['cheese','сыр','🧀'], ['cherry','вишня','🍒']]}],
+  [{head:'th', words:[['three','три','3'], ['thumb','большой палец','👍'], ['thirteen','тринадцать','13']]},
+   {head:'wh', words:[['whale','кит','🐳'], ['wheel','колесо','🛞'], ['white','белый','#ffffff']]}],
+  /* «волшебная e» в конце: буква читается как в алфавите */
+  [{fam:'ake', words:[['cake','торт','🎂'], ['lake','озеро','🏞️'], ['snake','змея','🐍']]},
+   {fam:'ike', words:[['bike','велосипед','🚲'], ['like','нравится','👍']]},
+   {fam:'one', words:[['bone','косточка','🦴'], ['cone','рожок','🍦'], ['phone','телефон','📱']]}],
+].map((fams, i) => fams.flatMap(f => f.words.map(x => ({...w(x), k: 'r:' + x[0],
+  ...(f.head ? {fam: x[0].slice(f.head.length), head: f.head} : {fam: f.fam}), lesson: i}))));
+/* Слова, которые читают целиком: без картинок, учим по примерам. Открывается после 4-го урока чтения. */
+const SIGHT = [
+  [['the','—','I see the cat'], ['is','есть, является','The sun is hot'], ['and','и','Mom and dad'], ['I','я','I can run'], ['you','ты','I like you']],
+  [['a','—','I have a dog'], ['it','это, оно','It is red'], ['my','мой','This is my bed'], ['can','умею, могу','I can swim'], ['see','вижу','I see a bird']],
+].map(set => set.map(([en, ru, ex]) => ({k: 's:' + en, en, ru, ex, e: '📖'})));
+/* Мини-книжки: каждое слово можно нажать и услышать. after — какой урок чтения нужен */
+const BOOKS = [
+  {after:'rd:0', title:'The cat', icon:'🐱', pages:[['I see a cat.','🐱'], ['The cat has a hat.','🐱🎩'], ['The cat is fat.','😺'], ['The cat sat on a mat.','🐱🟫']]},
+  {after:'rd:1', title:'Dog and frog', icon:'🐸', pages:[['A dog sat on a log.','🐶🪵'], ['A frog sat on the log.','🐸🪵'], ['The dog and the frog see a fox.','🐶🐸🦊'], ['Run, frog, run!','🐸💨']]},
+  {after:'rd:2', title:'My red bed', icon:'🛏️', pages:[['I have a red bed.','🛏️'], ['Ten hens sat on my bed!','🐔🐔🐔'], ['Get off my bed, hens!','😠'], ['Now I can sleep.','😴']]},
+  {after:'rd:3', title:'Fun in the sun', icon:'☀️', pages:[['The sun is up.','☀️'], ['A bug can run.','🐛💨'], ['A bug can hug.','🐛🤗'], ['We have fun in the sun!','😎']]},
+  {after:'rd:4', title:'The big ship', icon:'🚢', pages:[['I see a big ship.','🚢'], ['A sheep is on the ship.','🐑🚢'], ['A chick is on the ship.','🐥🚢'], ['The ship goes to the sea.','🌊']]},
+  {after:'rd:6', title:'The cake', icon:'🎂', pages:[['I like cake.','🎂'], ['I ride my bike to the lake.','🚲🏞️'], ['A snake is at the lake!','🐍'], ['The snake likes cake too.','🐍🎂']]},
+].map((b, i) => ({...b, i, pages: b.pages.map(([en, e]) => ({en, e}))}));
 
 /* Разговор: вопрос и ответ. Открывается после темы after. Картинка подсказывает, какой ответ верный. */
 const DIALOGS = [
@@ -387,6 +411,66 @@ const RHYMES = [
   ]},
 ].map(r => ({...r, lines: r.lines.map(([en, ru]) => ({en, ru}))}));
 
+/* «Я вижу…»: картинка-сцена и предлоги. Мебель стоит в точке x,y (проценты), s — размер.
+   rel: on — на, under — под, in — в, next to — рядом. pl — во множественном числе (are). */
+const SCENES = [
+  {after:'home', title:'My room', icon:'🛏️', bg:'#fdf1dc', things:{bed:['🛏️',24,58,3.4], chair:['🪑',74,60,2.8], box:['📦',50,74,2.2]}, items:[
+    ['cat','кошка','🐱','on','bed'], ['ball','мяч','⚽','under','chair'], ['teddy bear','мишка','🧸','in','box'],
+    ['dog','собака','🐶','next to','box'], ['book','книга','📖','on','chair'], ['socks','носки','🧦','under','bed', 1]]},
+  {after:'nature', title:'In the park', icon:'🌳', bg:'#e3f7e3', things:{tree:['🌳',22,52,4], car:['🚗',72,72,2.6], basket:['🧺',48,76,2]}, items:[
+    ['bird','птица','🐦','on','tree'], ['dog','собака','🐶','under','tree'], ['ball','мяч','⚽','in','basket'],
+    ['cat','кошка','🐱','on','car'], ['frog','лягушка','🐸','next to','basket'], ['bike','велосипед','🚲','next to','car']]},
+].map((sc, i) => ({...sc, i, items: sc.items.map(([en, ru, e, rel, of, pl]) => ({k: 'sp:' + i + ':' + en, en, ru, e, rel, of, pl: !!pl,
+  say: `The ${en} ${pl ? 'are' : 'is'} ${rel} the ${of}`, ask: `Where ${pl ? 'are' : 'is'} the ${en}?`, ans: `${rel} the ${of}`}))}));
+const PREP_RU = {on: 'на', under: 'под', in: 'в', 'next to': 'рядом с'};
+
+/* Магазин понарошку: продавец говорит, ребёнок выбирает ответ (первый вариант — верный); pay — заплатить монетками */
+const ROLEPLAYS = [
+  {after:'food', title:'At the shop', icon:'🏪', who:'👩‍💼', lines:[
+    ['Hello! Can I help you?', 'Здравствуйте! Чем помочь?', [['Hello! Can I have a banana, please?', 'Здравствуйте! Можно банан, пожалуйста?'], ['Good night!', 'Спокойной ночи!'], ['I am a banana', 'Я банан']]],
+    ['Here you are. That is two coins.', 'Вот, пожалуйста. С тебя две монетки.', 2],
+    ['Thank you!', 'Спасибо!', [['Thank you! Bye!', 'Спасибо! До свидания!'], ['Hello!', 'Привет!'], ['I am sad', 'Мне грустно']]],
+  ]},
+  {after:'fruits', title:'Fruit shop', icon:'🍎', who:'🧑‍🌾', lines:[
+    ['Hello! What do you want?', 'Привет! Что ты хочешь?', [['I want apples, please', 'Я хочу яблок, пожалуйста'], ['I am fine', 'Хорошо'], ['It is blue', 'Это синий']]],
+    ['How many apples?', 'Сколько яблок?', [['Three apples, please', 'Три яблока, пожалуйста'], ['Yes, I do', 'Да'], ['Good morning', 'Доброе утро']]],
+    ['That is five coins.', 'С тебя пять монеток.', 5],
+    ['Here you are!', 'Держи!', [['Thank you! Bye!', 'Спасибо! До свидания!'], ['No, thank you', 'Нет, спасибо'], ['Look up', 'Посмотри вверх']]],
+  ]},
+  {after:'toys', title:'Toy shop', icon:'🧸', who:'🧑', lines:[
+    ['Hello! Do you like this robot?', 'Привет! Тебе нравится этот робот?', [['Yes, I do. How much is it?', 'Да. Сколько он стоит?'], ['No, I am a robot', 'Нет, я робот'], ['It is cold', 'Холодно']]],
+    ['It is four coins.', 'Четыре монетки.', 4],
+    ['Here is your robot!', 'Вот твой робот!', [['Thank you! I am happy!', 'Спасибо! Я рад!'], ['Good night', 'Спокойной ночи'], ['Where is the robot?', 'Где робот?']]],
+  ]},
+].map((r, i) => ({...r, i, lines: r.lines.map(([en, ru, x]) => typeof x === 'number' ? {en, ru, pay: x} : {en, ru, opts: x.map(([a, b]) => ({en: a, ru: b}))})}));
+
+/* Часы и монетки */
+const CLOCK_HOURS = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+const TIME_SAY = h => `It is ${CLOCK_HOURS[h - 1]} o'clock`;
+
+/* Противоположности и сравнение */
+const OPPOSITES = [
+  [['hot','горячий','🔥'], ['cold','холодный','🧊']], [['big','большой','🐘'], ['small','маленький','🐭']],
+  [['happy','весёлый','😊'], ['sad','грустный','😢']], [['up','вверх','⬆️'], ['down','вниз','⬇️']],
+  [['fast','быстрый','🐆'], ['slow','медленный','🐢']], [['open','открытый','📖'], ['closed','закрытый','📕']],
+  [['day','день','☀️'], ['night','ночь','🌙']], [['long','длинный','🐍'], ['short','короткий','🐛']],
+].map(([a, b], i) => ({i, a: {k: 'o:' + a[0], en: a[0], ru: a[1], e: a[2]}, b: {k: 'o:' + b[0], en: b[0], ru: b[1], e: b[2]}}));
+/* Сравнение: q — вопрос, how — как нарисовать разницу (размер, высота, длина) */
+const COMPARE = [
+  {q:'Which is bigger?', ru:'Что больше?', how:'big'}, {q:'Which is smaller?', ru:'Что меньше?', how:'small'},
+  {q:'Which is taller?', ru:'Что выше?', how:'tall'}, {q:'Which is longer?', ru:'Что длиннее?', how:'long'},
+];
+
+/* Моя история: ребёнок выбирает героя, цвет, место, умение и настроение */
+const STORY_PARTS = {
+  hero:  ['cat', 'dog', 'bear', 'frog', 'horse', 'bird', 'monkey', 'robot'],
+  color: ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'black', 'white'],
+  place: ['house', 'school', 'sea', 'river', 'mountain', 'tree'],
+  can:   ['run', 'swim', 'sing', 'dance', 'read', 'draw', 'jump', 'sleep'],
+  feel:  ['happy', 'sad', 'tired', 'hungry', 'scared', 'angry'],
+};
+const STORY_BITS = ['This is my', 'My', 'is', 'It is in the', 'It can', 'It is', 'The end!'];
+
 /* Задания, которые произносятся по-русски перед английским словом (один раз за урок на каждый вид задания).
    Ключ — вид задания в игре. После изменения пересоберите озвучку: node tools/build-audio.mjs */
 const HINTS = {
@@ -428,6 +512,24 @@ const HINTS = {
   rgap:    'Какое слово потерялось в стишке?',
   g_c:     'Слушай команды! Если сказали please, нажми, что сделать. Если нет — нажми «Не делать».',
   advent:  'Новогодний календарь! Пройди урок, чтобы открыть окошко.',
+  sintro:  'Это слово читают целиком. Запомни, как оно выглядит.',
+  sfind:   'Найди это слово в предложении и нажми на него.',
+  bpage:   'Послушай страницу. Нажми на любое слово, чтобы услышать его.',
+  bself:   'А теперь прочитай сам! Если трудно — нажми на слово.',
+  spyintro:'Посмотри на картинку и послушай, где что лежит.',
+  spyfind: 'Послушай и нажми на картинке, что услышал.',
+  spypick: 'Где это? Выбери правильный ответ.',
+  role:    'Ты в магазине! Слушай продавца и выбирай ответ.',
+  pay:     'Заплати монетками. Нажимай монетки и считай.',
+  cintro:  'Это часы. Послушай, который час.',
+  cpick:   'Который час? Выбери ответ.',
+  chear:   'Послушай и найди нужные часы.',
+  mcount:  'Сколько монеток? Посчитай.',
+  ointro:  'Это противоположности — слова наоборот.',
+  opick:   'Найди противоположное слово.',
+  cmp:     'Послушай вопрос и нажми на нужную картинку.',
+  mystory: 'Придумай свою историю! Выбирай героя, цвет и место.',
+  chat:    'Поболтай с питомцем по-английски!',
 };
 
 /* Похвала в конце урока: 3, 2 и 1 звезда */
@@ -528,7 +630,8 @@ const FUND = [
   {name:'Замок',  icon:'🏰', need:2000},
 ];
 /* Английские слова и фразы, которых нет в уроках, но они звучат в игре (записываются tools/build-audio.mjs) */
-const EXTRA = ['bowl', 'leash', 'books', 'shop', 'star', 'guitar', 'tent', 'rocket', 'boat', 'bike', 'fountain', 'castle',
+const EXTRA = [...STORY_BITS, "What time is it?", ...CLOCK_HOURS.map((_, i) => TIME_SAY(i + 1)), 'coins', 'Here you are', 'How many coins?',
+  ...OPPOSITES.flatMap(o => [o.a.en, o.b.en]), ...COMPARE.map(c => c.q), ...Object.values(STORY_PARTS).flat(), 'bowl', 'leash', 'books', 'shop', 'star', 'guitar', 'tent', 'rocket', 'boat', 'bike', 'fountain', 'castle',
   'sit', 'jump', 'good dog', 'Happy New Year', ...COMMANDS.flatMap(c => [c.en, 'please ' + c.en]), 'yummy', "let's go for a walk", 'good night', ...CARDS.map(c => c.en)];
 const WALLS = [
   {id:'',       ru:'обычные',                   price:0,  css:'linear-gradient(#fdf1dc,#f8e3c0)', dot:'#f8e3c0'},

@@ -121,7 +121,9 @@ function parents(pid){
       <select id="pf" class="sel"><option value="">без совета</option>${TOPICS.map((t, ti) => topicOpen(p, ti) ? `<option value="${t.id}" ${p.plan && p.plan.f === t.id ? 'selected' : ''}>${t.icon} ${esc(t.title)}</option>` : '').join('')}</select>
       ${online() && srv ? `<p class="sub" style="margin:16px 0 8px">Напоминание в Telegram, если сегодня ещё не занимались</p>
         <div class="row"><button class="chip" id="ron">${srv.remind_on ? '🔔 включено' : '🔕 выключено'}</button>
-          ${srv.remind_on ? `<label class="chip">в <select id="rh">${Array.from({length: 24}, (_, h) => `<option value="${h}" ${h === srv.remind_hour ? 'selected' : ''}>${h}:00</option>`).join('')}</select></label>` : ''}</div>` : ''}
+          ${srv.remind_on ? `<label class="chip">в <select id="rh">${Array.from({length: 24}, (_, h) => `<option value="${h}" ${h === srv.remind_hour ? 'selected' : ''}>${h}:00</option>`).join('')}</select></label>` : ''}</div>
+        <p class="sub" style="margin:16px 0 8px">Отчёт за неделю в Telegram по воскресеньям вечером</p>
+        <div class="row"><button class="chip" id="won">${srv.weekly_on === false ? '🔕 выключен' : '📬 включён'}</button></div>` : ''}
     </div>
     <h3 class="sec">🦴 Косточки: заработано и потрачено</h3>
     ${reportHTML(p)}
@@ -140,7 +142,8 @@ function parents(pid){
   const plan = patch => { p.plan = {...(p.plan || {}), ...patch}; save(); parents(p.id) };
   $$('[data-pn]').forEach(b => b.onclick = () => plan({n: +b.dataset.pn}));
   $('#pf').onchange = e => plan({f: e.target.value});
-  const settings = async patch => { await call('/api/settings', {remind_on: srv.remind_on, remind_hour: srv.remind_hour, public: srv.public, ...patch}); parents(p.id) };
+  const settings = async patch => { await call('/api/settings', {remind_on: srv.remind_on, remind_hour: srv.remind_hour, public: srv.public, weekly_on: srv.weekly_on !== false, ...patch}); parents(p.id) };
+  if ($('#won')) $('#won').onclick = () => settings({weekly_on: srv.weekly_on === false});
   if ($('#ron')) $('#ron').onclick = () => settings({remind_on: !srv.remind_on});
   if ($('#rh')) $('#rh').onchange = e => settings({remind_on: true, remind_hour: +e.target.value});
 }

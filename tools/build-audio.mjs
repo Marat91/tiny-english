@@ -22,7 +22,7 @@ console.log(`Голоса: ${VOICE} / ${RU_VOICE}`);
 
 const chars = readdirSync(join(root, 'js/characters')).filter(f => f.endsWith('.js')).map(f => 'js/characters/' + f);
 const code = ['js/data.js', 'js/characters.js', ...chars].map(f => readFileSync(join(root, f), 'utf8')).join('\n;\n');
-const { LETTERS, TOPICS, PRAISE, CHARACTERS, HINTS, PHRASES, EXTRA, READ, DIALOGS, STORIES, GRAMMAR, RHYMES } = vm.runInNewContext(code + "\n;({LETTERS, TOPICS, PRAISE, CHARACTERS, HINTS, PHRASES, EXTRA, READ, DIALOGS, STORIES, GRAMMAR, RHYMES})");
+const { LETTERS, TOPICS, PRAISE, CHARACTERS, HINTS, PHRASES, EXTRA, READ, DIALOGS, STORIES, GRAMMAR, RHYMES, SIGHT, BOOKS, SCENES, ROLEPLAYS } = vm.runInNewContext(code + "\n;({LETTERS, TOPICS, PRAISE, CHARACTERS, HINTS, PHRASES, EXTRA, READ, DIALOGS, STORIES, GRAMMAR, RHYMES, SIGHT, BOOKS, SCENES, ROLEPLAYS})");
 
 const texts = new Set();
 // буквы диктуем строчными: одиночную заглавную голос читает как «capital A»
@@ -33,6 +33,11 @@ PRAISE.forEach(p => texts.add(p.en));
 EXTRA.forEach(t => texts.add(t));
 READ.flat().forEach(x => texts.add(x.en));
 DIALOGS.forEach(d => d.set.forEach(x => { texts.add(x.q); texts.add(x.en) }));
+SIGHT.flat().forEach(x => { texts.add(x.en); texts.add(x.ex) });
+// в книжках каждое слово нажимается отдельно
+BOOKS.forEach(b => b.pages.forEach(pg => { texts.add(pg.en); pg.en.toLowerCase().match(/[a-z']+/g).forEach(w => texts.add(w)) }));
+SCENES.forEach(sc => sc.items.forEach(it => texts.add(it.say)));
+ROLEPLAYS.forEach(r => r.lines.forEach(l => { texts.add(l.en); (l.opts || []).forEach(o => texts.add(o.en)) }));
 GRAMMAR.forEach(g => g.set.forEach(x => texts.add(x.en)));
 RHYMES.forEach(r => r.lines.forEach(l => texts.add(l.en)));
 STORIES.forEach(s => { s.pages.forEach(pg => texts.add(pg.en)); s.quiz.forEach(q => texts.add(q.q)) });

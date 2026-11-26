@@ -53,7 +53,11 @@ function nyOn(){
   return (m === NY.from[0] && n >= NY.from[1]) || (m === NY.to[0] && n <= NY.to[1]);
 }
 const advDay = () => { const d = new Date(); return d.getMonth() === 11 || /[?&]ny=1/.test(location.search) ? Math.min(31, d.getDate()) : 0 };
+/* Виды уроков из js/learn.js: KINDS[вид] = {label, obj(L), steps(L)}. L.req — какой урок нужен (для чтения), иначе — пройденная тема L.t */
+const KINDS = {};
+const READING = ['read', 'sight', 'book'];
 function isLocked(p, L){
+  if (KINDS[L.kind]) return L.req ? abcDone(p) < ABC.length || !(p.stars[L.req] > 0) : !(topicOpen(p, L.ti) && topicDone(p, L.t));
   if (['phrase', 'dialog', 'story', 'gram', 'rhyme'].includes(L.kind)) return !(topicOpen(p, L.ti) && topicDone(p, L.t));
   if (L.kind === 'read') return abcDone(p) < ABC.length || (L.i > 0 && !(p.stars['rd:' + (L.i - 1)] > 0));
   if (L.kind === 'exam') return L.t ? !(topicOpen(p, L.ti) && topicDone(p, L.t)) : abcDone(p) < ABC.length;
@@ -190,10 +194,10 @@ function lessonCard(p, L){
     </button>`;
   if (L.kind === 'read')
     return `<button class="lcard c${(L.i + 1) % 6} ${locked ? 'locked' : ''}" data-id="${L.id}">
-      <div class="ls phr">${[...new Set(L.set.map(x => '-' + x.fam))].join(' ')}<span>${L.set.slice(0, 2).map(pic).join('')}</span></div>
+      <div class="ls phr">${[...new Set(L.set.map(x => x.head ? x.head + '-' : '-' + x.fam))].join(' ')}<span>${L.set.slice(0, 2).map(pic).join('')}</span></div>
       <div class="meta"><span class="num">📖 Чтение ${L.i + 1}</span>${locked ? '<span class="st">🔒</span>' : starsHTML(st)}</div>
     </button>`;
-  const sp = {dialog: ['🗨️ Разговор', L.d], story: ['📚 История', L.st], gram: ['🧩 Грамматика', L.g], rhyme: ['🎵 Стишок', L.r]}[L.kind];
+  const sp = KINDS[L.kind] ? [KINDS[L.kind].label, KINDS[L.kind].obj(L)] : {dialog: ['🗨️ Разговор', L.d], story: ['📚 История', L.st], gram: ['🧩 Грамматика', L.g], rhyme: ['🎵 Стишок', L.r]}[L.kind];
   if (sp)
     return `<button class="lcard c${(L.i + 4) % 6} ${locked ? 'locked' : ''}" data-id="${L.id}">
       <div class="ls phr">${esc(sp[1].title)}<span>${sp[1].icon}</span></div>
@@ -245,6 +249,7 @@ function home(){
       <button id="fam"><i>🏆</i>Рейтинг</button>
       <button id="m-map"><i>🗺️</i>Карта</button>
     </div>
+    ${chatOn() ? `<button class="review chatb" id="m-chat"><span class="rv-ic">💬</span><span class="rv-t"><b>Поболтать с ${esc(c.name)}</b><small>Разговор по-английски — питомец отвечает и подсказывает</small></span><span class="rv-go">▶</span></button>` : ''}
     ${nyBanner(p)}${focusBanner(p)}
     ${gifts ? `<button class="review giftb" id="gift"><span class="rv-ic">🎁</span><span class="rv-t"><b>Тебе подарок!</b><small>${gifts > 1 ? `Тебя ждут ${gifts} ${plural(gifts, 'подарок', 'подарка', 'подарков')}` : 'Нажми, чтобы открыть'}</small></span><span class="rv-go">▶</span></button>` : ''}
     ${dailyHTML(p)}
@@ -261,7 +266,8 @@ function home(){
       ${done ? `<button class="lcard c2" id="trc"><div class="ls">✍️</div><div class="meta"><span class="num">Прописи</span>${starsHTML(p.stars.trace || 0)}</div></button>` : ''}
     </div>
     ${done >= ABC.length ? `<h3 class="sec">📖 Учимся читать</h3>
-      <div class="grid">${ALL.filter(L => L.kind === 'read').map(L => lessonCard(p, L)).join('')}</div>`
+      <div class="grid">${ALL.filter(L => READING.includes(L.kind)).map(L => lessonCard(p, L)).join('')}
+        <button class="lcard c3" id="mys"><div class="ls">✏️</div><div class="meta"><span class="num">Моя история</span><span class="st">${(p.stories || []).length || ''}</span></div></button></div>`
       : `<div class="locked-topic"><span>📖 Учимся читать</span><small>🔒 откроется после всего алфавита</small></div>`}
     ${TOPICS.map((tp, ti) => {
       if (tp.holiday && !topicOpen(p, ti)) return '';
@@ -283,6 +289,8 @@ function home(){
   $('#abc').onclick = () => alphabet();
   $('#m-map').onclick = worldMap;
   if ($('#trc')) $('#trc').onclick = startTrace;
+  if ($('#mys')) $('#mys').onclick = () => myStory();
+  if ($('#m-chat')) $('#m-chat').onclick = chat;
   if ($('#ny')) $('#ny').onclick = advent;
   if ($('#focus')) $('#focus').onclick = () => topicScreen(p.plan.f);
   $('.pet').onclick = () => { petReact('ok'); say(c.hello) };
@@ -384,7 +392,7 @@ function worldMap(){
 function topicScreen(key){
   const p = me(), t = TOPICS.find(x => x.id === key);
   if (!t && key !== 'abc' && key !== 'read') return home();
-  const list = key === 'abc' ? ALL.filter(L => L.id.startsWith('abc:')) : key === 'read' ? ALL.filter(L => L.kind === 'read') : ALL.filter(L => L.t === t);
+  const list = key === 'abc' ? ALL.filter(L => L.id.startsWith('abc:')) : key === 'read' ? ALL.filter(L => READING.includes(L.kind)) : ALL.filter(L => L.t === t);
   render('topic', `
     <div class="lbar"><button class="x" id="x">←</button><h2 style="margin:0;flex:1">${key === 'abc' ? '🔤 Алфавит' : key === 'read' ? '📖 Учимся читать' : t.icon + ' ' + esc(t.title)}</h2><span class="chip">⭐ ${total(p)}</span></div>
     <div class="grid" style="margin-top:14px">${list.map(L => lessonCard(p, L)).join('')}</div>`);
@@ -467,7 +475,7 @@ function rating(){
     $('#x').onclick = home;
     if (on && g && boardData && boardData.scope === boardTab) wireSocial(g, boardData, draw);
     $$('[data-tab]').forEach(b => b.onclick = () => { boardTab = b.dataset.tab; draw(); load() });
-    const settings = patch => call('/api/settings', {remind_on: srv.remind_on, remind_hour: srv.remind_hour, public: srv.public, ...patch});
+    const settings = patch => call('/api/settings', {remind_on: srv.remind_on, remind_hour: srv.remind_hour, public: srv.public, weekly_on: srv.weekly_on !== false, ...patch});
     if ($('#ron')) $('#ron').onclick = async () => { await settings({remind_on: !srv.remind_on}); draw() };
     if ($('#rh')) $('#rh').onchange = async e => { await settings({remind_on: true, remind_hour: +e.target.value}); draw() };
     if ($('#pub')) $('#pub').onclick = async () => { await settings({public: !srv.public}); boardData = null; draw(); load() };
@@ -521,6 +529,7 @@ function alphabet(cur){
 let S = null;
 function startLesson(L){
   if (L.kind === 'trace') return startTrace();
+  if (KINDS[L.kind]){ S = {L, mode: 'lesson', steps: KINDS[L.kind].steps(L), pos: 0, mistakes: 0, pool: L.set || [], missed: new Set()}; return step() }
   const set = L.set;
   let listen = shuffle([...set, ...set]);
   for (let k = 0; k < 30 && listen.some((x, j) => j && x === listen[j - 1]); k++) listen = shuffle(listen);
@@ -738,7 +747,7 @@ STEPS.pintro = ({x}) => {
 };
 
 /* ---------- учимся читать ---------- */
-const readWord = x => `<span>${esc(x.en.slice(0, -x.fam.length))}</span><b>${esc(x.fam)}</b>`;
+const readWord = x => x.head ? `<b>${esc(x.head)}</b><span>${esc(x.fam)}</span>` : `<span>${esc(x.en.slice(0, -x.fam.length))}</span><b>${esc(x.fam)}</b>`;
 STEPS.rintro = ({x}) => {
   frame(`
     <p class="task">Читаем! Нажимай и слушай 👂</p>
@@ -892,6 +901,7 @@ STEPS.speak = st => {
         url = URL.createObjectURL(new Blob(chunks, {type: rec.mimeType || 'audio/mp4'}));
         mine.disabled = false; mh.textContent = 'Это ты! А потом — как говорит учитель 👂';
         petReact('ok'); playMine();
+        hearCheck(new Blob(chunks, {type: rec.mimeType || 'audio/mp4'}), x.en, text => { if (here()) mh.innerHTML = text });
       };
       rec.start(); mic.classList.add('on'); mh.textContent = 'Говори! 🔴 Нажми ещё раз, когда закончишь';
       timer = setTimeout(stop, 4000);
@@ -1145,4 +1155,4 @@ function start(){
 if (cloud){
   render('loading', `<div class="center" style="margin-top:60px">${petSVG('dog', 0)}<p class="sub">Загружаю…</p></div>`);
   loadCloud(() => loadCloudRev(start));
-} else start();
+} else if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else setTimeout(start);
