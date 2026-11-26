@@ -8,7 +8,16 @@ import Anthropic from '@anthropic-ai/sdk';
    - /api/hear    — распознаёт короткую запись голоса (Workers AI, Whisper); нужен блок [ai] в wrangler.toml
    - /api/chat    — ответ питомца в разговоре (Claude); нужен секрет ANTHROPIC_API_KEY */
 
-const HEAR_PER_DAY = 120, CHAT_PER_DAY = 40;          // лимиты на одного пользователя Telegram в сутки
+const HEAR_PER_DAY = 120, CHAT_PER_DAY = 40;
+/* Покупки за Звёзды Telegram. Цена — здесь (сервер решает, сколько списать); названия и значки в игре — STAR_SHOP в js/data.js */
+const STAR_ITEMS = {
+  energy:   { stars: 15, title: 'Полная энергия', text: 'Питомец сыт, весел и полон сил' },
+  bones100: { stars: 25, title: '100 косточек', text: 'Косточки для магазина питомца' },
+  bones300: { stars: 60, title: '300 косточек', text: 'Большой набор косточек для магазина питомца' },
+  freeze:   { stars: 10, title: '2 заморозки серии', text: 'Огонёк не погаснет, если пропустить день' },
+  unicorn:  { stars: 50, title: 'Единорог', text: 'Редкое украшение для комнаты питомца' },
+  trophy:   { stars: 50, title: 'Золотой кубок', text: 'Редкое украшение для комнаты питомца' },
+};          // лимиты на одного пользователя Telegram в сутки
 
 const PETS = { dog: ['🐶', 'Бадди соскучился'], cat: ['🐱', 'Луна соскучилась'], bunny: ['🐰', 'Банни соскучился'] };
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type', 'access-control-allow-methods': 'POST, OPTIONS' };
@@ -106,6 +115,7 @@ async function state(env, id){
     weekly_on: me.weekly_on !== 0, wotd_on: !!me.wotd_on, chat: !!env.ANTHROPIC_API_KEY, hear: !!env.AI,
     pics: Object.fromEntries((await env.DB.prepare('SELECT pid, key FROM profile_photos WHERE tg_id = ?').bind(id).all()).results.map(r => [r.pid, '/photo/' + r.key])),
     gifts: gifts.map(g => ({ id: g.id, pid: g.pid, from: g.from_name, kind: g.kind, val: g.val, card: g.card })),
+    buys: (await env.DB.prepare('SELECT charge, pid, item FROM purchases WHERE tg_id = ? AND granted = 0 LIMIT 20').bind(id).all()).results,
     groups: groups.map(g => ({ code: g.code, name: g.name, members: g.n, mine: g.owner === id, fund: g.fund || 0, invite: invite(env, g.code), hw: parseHw(g.hw) })),
   };
 }
@@ -307,6 +317,14 @@ async function api(path, body, env){
   if (path === '/api/duel') return duelApi(env, u, body);
   if (path === '/api/hear') return hearApi(env, u, body);
   if (path === '/api/tour') return tourApi(env, u, body);
+  if (path === '/api/invoice'){
+    /* Ссылка на оплату Звёздами; игра открывает её через Telegram.WebApp.openInvoice */
+    const it = STAR_ITEMS[body.item], pid = str(body.pid, 24);
+    if (!it || !pid) return json({ error: 'item' }, 400);
+    const r = await tgApi(env, 'createInvoiceLink', { title: it.title, description: it.text, payload: `${body.item}:${pid}`,
+      currency: 'XTR', prices: [{ label: it.title, amount: it.stars }] });
+    return r.ok && r.data && r.data.result ? json({ link: r.data.result }) : json({ error: 'invoice' }, 502);
+  }
   if (path === '/api/chat') return chatApi(env, u, body);
   if (['/api/gift', '/api/visit', '/api/treat', '/api/ask', '/api/fund'].includes(path)) return socialApi(env, u, path, body);
 
@@ -356,6 +374,11 @@ async function api(path, body, env){
     await env.DB.prepare('UPDATE users SET remind_on = ?, remind_hour = ?, public = ?, weekly_on = ?, wotd_on = ? WHERE tg_id = ?')
       .bind(body.remind_on ? 1 : 0, int(body.remind_hour, 0, 23, 18), body.public === false ? 0 : 1, body.weekly_on === false ? 0 : 1, body.wotd_on ? 1 : 0, u.id).run();
   }
+  else if (path === '/api/buys'){
+    /* игра выдала покупки — больше их не присылаем */
+    const ids = (Array.isArray(body.ids) ? body.ids : []).slice(0, 20).map(x => str(x, 200));
+    for (const c of ids) await env.DB.prepare('UPDATE purchases SET granted = 1 WHERE tg_id = ? AND charge = ?').bind(u.id, c).run();
+  }
   else if (path === '/api/hw'){
     const r = await hwApi(env, u, body);
     if (r) return r;
@@ -392,7 +415,24 @@ async function api(path, body, env){
 async function webhook(req, env){
   if (req.headers.get('x-telegram-bot-api-secret-token') !== await hookSecret(env)) return new Response('forbidden', { status: 403 });
   const upd = await req.json().catch(() => null);
+  /* Telegram спрашивает перед списанием Звёзд, можно ли продавать — отвечаем «да», если такая вещь есть и цена верная */
+  const pq = upd && upd.pre_checkout_query;
+  if (pq){
+    const it = STAR_ITEMS[String(pq.invoice_payload || '').split(':')[0]];
+    const ok = !!it && pq.currency === 'XTR' && pq.total_amount === it.stars;
+    await tgApi(env, 'answerPreCheckoutQuery', ok ? { pre_checkout_query_id: pq.id, ok: true }
+      : { pre_checkout_query_id: pq.id, ok: false, error_message: 'Этот товар больше не продаётся. Откройте игру ещё раз.' });
+    return new Response('ok');
+  }
   const m = upd && upd.message;
+  /* Оплата прошла: записываем покупку, игра заберёт её при следующем обращении к серверу */
+  if (m && m.successful_payment && m.from){
+    const sp = m.successful_payment, [item, pid] = String(sp.invoice_payload || '').split(':');
+    await env.DB.prepare('INSERT OR IGNORE INTO purchases (charge, tg_id, pid, item, stars, created) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind(str(sp.telegram_payment_charge_id, 200), m.from.id, str(pid, 24), str(item, 20), int(sp.total_amount, 0, 1e6, 0), new Date().toISOString()).run();
+    await tgApi(env, 'sendMessage', { chat_id: m.chat.id, text: 'Спасибо! ⭐ Покупка уже ждёт в игре — откройте её 👇', reply_markup: playButton(env) });
+    return new Response('ok');
+  }
   if (!m || !m.from || !m.chat || m.chat.type !== 'private') return new Response('ok');
   await ensureUser(env, m.from);
   const text = (m.text || '').trim();
@@ -634,7 +674,7 @@ export default {
       const ph = /^\/photo\/([0-9a-f]{32})$/.exec(url.pathname);
       if (ph && req.method === 'GET') return await servePhoto(env, ph[1]);
       if (url.pathname === '/setup'){
-        const r = await tgApi(env, 'setWebhook', { url: url.origin + '/tg', secret_token: await hookSecret(env), allowed_updates: ['message'] });
+        const r = await tgApi(env, 'setWebhook', { url: url.origin + '/tg', secret_token: await hookSecret(env), allowed_updates: ['message', 'pre_checkout_query'] });
         await tgApi(env, 'setMyCommands', { commands: [{ command: 'start', description: 'Открыть игру' }, { command: 'stop', description: 'Выключить напоминания, слово дня и отчёты' }] });
         // заодно подтягиваем фото тем, у кого его ещё не проверяли (понемногу за раз)
         // ?recheck=1 — ещё раз проверить тех, у кого фото не нашлось

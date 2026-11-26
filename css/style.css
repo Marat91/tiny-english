@@ -640,3 +640,4 @@ img.e3{width:1.2em;height:1.2em;vertical-align:-.22em;display:inline-block;objec
 .bigem img.e3,.opt img.e3,.pc img.e3{width:1.1em;height:1.1em}
 /* значки подарков и костюмов под питомцем-картинкой — маленькие, не растягиваются как сам питомец */
 .pet.pic .toys img.e3{width:1.2em;height:1.2em;display:inline-block;animation:none;vertical-align:-.25em}
+.si.stars .pr{background:linear-gradient(135deg,#ffd84d,#ffb300);color:#5a3b00}

@@ -388,3 +388,66 @@ async function hwScreen(code, edit){
   $('#who').innerHTML = r && r.rows ? (r.rows.length ? `<div class="board">${r.rows.map(x => `<div class="brow"><span class="bn">${esc(x.name)}</span><span class="bs">${x.done.length} из ${hw ? hw.topics.length : 0} ${hw && x.done.length >= hw.topics.length ? '✅' : ''}</span></div>`).join('')}</div>` : '<p class="sub">Пока никто не открывал задание.</p>')
     : '<p class="sub">Список появится, когда сервер обновят.</p>';
 }
+
+/* ================= Покупки за Звёзды Telegram ================= */
+/* Оплату подтверждает сам Telegram в своём окне. Сервер записывает оплаченное, игра выдаёт и сообщает серверу, что выдала.
+   Номера выданных покупок помним и на телефоне — чтобы ничего не выдать дважды, даже если связь оборвалась. */
+const BUYS_KEY = 'tiny-buys';
+const starsOn = () => online() && !!(tg && tg.openInvoice);
+function starShopHTML(p){
+  if (!starsOn()) return '';
+  return `<h3 class="sec">⭐ За звёзды Telegram <small>поддержать игру</small></h3>
+    <div class="shop">${STAR_SHOP.map(s => { const has = s.give.own && owns(p, s.give.own);
+      return `<button class="si stars ${has ? 'own' : ''}" data-star="${s.id}"><i>${s.icon}</i><b>${esc(s.ru)}</b><small>${esc(s.small)}</small><span class="pr">${has ? '✓ есть' : '⭐ ' + s.stars}</span></button>` }).join('')}</div>`;
+}
+function wireStarShop(){
+  $$('[data-star]').forEach(b => b.onclick = async () => {
+    const p = me(), s = STAR_SHOP.find(x => x.id === b.dataset.star);
+    if (!s || b.classList.contains('own') || b.disabled) return;
+    b.disabled = true;
+    const r = await post('/api/invoice', {item: s.id, pid: p.id});
+    b.disabled = false;
+    if (!r || !r.link) return askBox('<p>Не получилось открыть оплату. Проверьте интернет и попробуйте ещё раз.</p>', 'Хорошо', 'Закрыть', () => {});
+    try {
+      tg.openInvoice(r.link, status => { if (status === 'paid') waitBuys() });
+    } catch(e){ buzz() }
+  });
+}
+/* После оплаты покупка появляется на сервере через секунду-другую — спрашиваем несколько раз */
+async function waitBuys(){
+  for (let i = 0; i < 8; i++){
+    const r = await syncServer();
+    if (r && r.buys && r.buys.length) return;
+    await new Promise(ok => setTimeout(ok, 1500));
+  }
+}
+function applyBuys(list){
+  let done; try { done = new Set(JSON.parse(localStorage.getItem(BUYS_KEY)) || []) } catch(e){ done = new Set() }
+  const got = [];
+  for (const b of list){
+    if (done.has(b.charge)) continue;
+    const s = STAR_SHOP.find(x => x.id === b.item), p = db.profiles.find(x => x.id === b.pid) || me();
+    if (!s || !p) continue;
+    if (s.give.e){ const q = petOf(p); q.f = q.m = q.e = 100 }
+    if (s.give.b) earn(p, s.give.b);
+    if (s.give.fr) p.fr = (p.fr || 0) + s.give.fr;
+    if (s.give.own && !owns(p, s.give.own)) p.own = [...(p.own || []), s.give.own];
+    done.add(b.charge); got.push({s, p});
+  }
+  try { localStorage.setItem(BUYS_KEY, JSON.stringify([...done].slice(-200))) } catch(e){}
+  post('/api/buys', {ids: list.map(b => b.charge)});
+  if (!got.length) return;
+  save();
+  /* посреди урока или игры не мешаем — покупка уже выдана, увидят в магазине */
+  if (!['room', 'home', 'chest', 'loading'].includes(screen)) return ding();
+  render('chest', `
+    <div class="stage" style="margin-top:24px"><div class="center">
+      <div class="bigem medal">⭐</div>
+      <h1>Спасибо!</h1>
+      ${got.map(({s, p}) => `<div class="earned big">${s.icon} ${esc(s.ru)}${db.profiles.length > 1 ? ' · ' + esc(p.name) : ''}</div>`).join('')}
+      <p class="sub" style="margin:0">Покупка уже в игре</p>
+      <button class="btn" id="go">Ура! →</button>
+    </div></div>`);
+  fanfare();
+  $('#go').onclick = () => room('shop');
+}

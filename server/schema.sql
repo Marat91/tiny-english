@@ -133,3 +133,8 @@ CREATE TABLE IF NOT EXISTS hw_done (
   name TEXT, done TEXT,
   PRIMARY KEY (code, tg_id, pid)
 );
+-- Покупки за Звёзды Telegram
+CREATE TABLE IF NOT EXISTS purchases (
+  charge TEXT PRIMARY KEY, tg_id INTEGER NOT NULL, pid TEXT, item TEXT NOT NULL,
+  stars INTEGER NOT NULL, created TEXT NOT NULL, granted INTEGER NOT NULL DEFAULT 0
+);

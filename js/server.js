@@ -19,6 +19,7 @@ async function call(path, body){
   const r = await post(path, body);
   const hadGifts = srv && srv.gifts ? srv.gifts.length : 0;
   if (r) srv = r;
+  if (r && r.buys && r.buys.length && typeof applyBuys === 'function') applyBuys(r.buys);   // оплаченные Звёздами покупки
   if (r && r.gifts && r.gifts.length > hadGifts && screen === 'home') home();          // пришёл подарок — показываем сразу
   if (r && r.pics){ myPics = r.pics; try { localStorage.setItem(PICS_KEY, JSON.stringify(myPics)) } catch(e){} }
   if (r && 'photo' in r && (r.photo || '') !== myPhoto){               // сервер нашёл (или потерял) настоящее фото

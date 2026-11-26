@@ -459,6 +459,16 @@ const QUESTS = [
   {id:'d', n:4,  icon:'🔥', ru:'Занимайся 4 разных дня'},   {id:'l', n:5, icon:'📚', ru:'Пройди 5 уроков'},
 ];
 const WEEK_PRIZE = 40;
+/* Покупки за Звёзды Telegram (цену списывает сервер — STAR_ITEMS в server/src/index.js, держите цены одинаковыми).
+   give: e — полная энергия, b — косточки, fr — заморозки, own — вещь в комнату */
+const STAR_SHOP = [
+  {id:'energy',   icon:'⚡', ru:'Полная энергия',     small:'питомец сыт, весел и бодр', stars:15, give:{e:1}},
+  {id:'bones100', icon:'🦴', ru:'100 косточек',       small:'для магазина питомца',     stars:25, give:{b:100}},
+  {id:'bones300', icon:'💰', ru:'300 косточек',       small:'большой набор',            stars:60, give:{b:300}},
+  {id:'freeze',   icon:'❄️', ru:'2 заморозки серии',  small:'огонёк не погаснет',       stars:10, give:{fr:2}},
+  {id:'unicorn',  icon:'🦄', ru:'Единорог',           small:'редкое украшение',         stars:50, give:{own:'sunicorn'}},
+  {id:'trophy',   icon:'🏆', ru:'Золотой кубок',      small:'редкое украшение',         stars:50, give:{own:'strophy'}},
+];
 /* Сад питомца: растение за каждую пройденную тему и росток за каждые 10 выученных слов */
 const GARDEN = ['🌳', '🌲', '🌴', '🌻', '🌷', '🌹', '🌵', '🍄', '🎋', '🌾', '🌺', '🪴'];
 
@@ -774,6 +784,8 @@ const SHOP = [
   {id:'snest',   type:'fun',  en:'nest',       ru:'гнездо',   icon:'🪹', price:25,  pos:[12,72,1],   ev:'spring'},
   {id:'ccampfire',type:'fun', en:'campfire',   ru:'костёр',   icon:'🔥', price:35,  yard:true,       ev:'summer'},
   {id:'ccanoe',  type:'fun',  en:'canoe',      ru:'каноэ',    icon:'🛶', price:45,  yard:true,       ev:'summer'},
+  {id:'sunicorn',type:'fun',  en:'unicorn',    ru:'единорог', icon:'🦄', price:0,   pos:[30,24,1.6], star:true},
+  {id:'strophy', type:'fun',  en:'trophy',     ru:'золотой кубок', icon:'🏆', price:0, pos:[72,46,1.1], star:true},
   {id:'xsanta',  type:'fun',  en:'Santa',      ru:'Дед Мороз', icon:'🎅', price:80, pos:[78,22,1.3], ny:true},
 ];
 /* Еда: f — сытость, m — настроение, cap — выше какого уровня сытость не поднимет */
