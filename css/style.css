@@ -635,3 +635,8 @@ button.brow{width:100%;font:inherit;font-weight:800;font-size:clamp(16px,2.6vw,1
 .garden div{font-size:30px;line-height:1.25;letter-spacing:2px}
 .garden em{font-size:15px;font-style:normal;color:var(--muted);letter-spacing:0}
 .chip:disabled{opacity:.6}
+/* объёмные картинки вместо эмодзи */
+img.e3{width:1.2em;height:1.2em;vertical-align:-.22em;display:inline-block;object-fit:contain;pointer-events:none;-webkit-user-drag:none}
+.bigem img.e3,.opt img.e3,.pc img.e3{width:1.1em;height:1.1em}
+/* значки подарков и костюмов под питомцем-картинкой — маленькие, не растягиваются как сам питомец */
+.pet.pic .toys img.e3{width:1.2em;height:1.2em;display:inline-block;animation:none;vertical-align:-.25em}

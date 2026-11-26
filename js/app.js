@@ -6,9 +6,35 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>'
 const shuffle = a => { a = [...a]; for (let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]] } return a };
 const pick = a => a[Math.floor(Math.random() * a.length)];
 let screen = '';
-const render = (name, html) => { screen = name; app.innerHTML = html; window.scrollTo(0, 0) };
+const render = (name, html) => { screen = name; app.innerHTML = html; emojify(app); window.scrollTo(0, 0) };
 
-const pic = x => x.c ? `<span class="sw" style="background:${x.c}"></span>` : x.n ? `<span class="numpic">${x.n}</span>` : x.e;
+/* Объёмные картинки вместо эмодзи телефона (img/e, список — js/emoji.js, собирает tools/build-emoji.mjs).
+   Эмодзи, которого нет в наборе, остаётся обычным. */
+const SEG = window.Intl && Intl.Segmenter ? new Intl.Segmenter('en', {granularity: 'grapheme'}) : null;
+const EMO_RE = /\p{Extended_Pictographic}|\u20e3/u;
+function emoFile(g){
+  const c = [...g].map(ch => ch.codePointAt(0).toString(16).padStart(4, '0')).join('-'), plain = c.replace(/-fe0f/g, '');
+  return EMOJI3D.has(c) ? c : EMOJI3D.has(plain) ? plain : EMOJI3D.has(c + '-fe0f') ? c + '-fe0f' : null;
+}
+function emo(s){
+  if (!SEG || typeof EMOJI3D === 'undefined' || !EMO_RE.test(s)) return s;
+  let out = '';
+  for (const {segment: g} of SEG.segment(s)){
+    const f = EMO_RE.test(g) && emoFile(g);
+    out += f ? `<img class="e3" src="img/e/${f}.webp" alt="${g}" draggable="false" onerror="this.replaceWith(this.alt)">` : g;
+  }
+  return out;
+}
+/* Меняет эмодзи в тексте на картинки во всём, что только что нарисовано (кроме полей ввода и SVG) */
+function emojify(root){
+  if (!SEG || typeof EMOJI3D === 'undefined') return;
+  const tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {acceptNode: n =>
+    EMO_RE.test(n.nodeValue) && !n.parentElement.closest('svg,select,option,textarea,input,script,style,.noemo') ? 1 : 3});
+  const list = []; while (tw.nextNode()) list.push(tw.currentNode);
+  list.forEach(n => { const t = document.createElement('template'); t.innerHTML = emo(esc(n.nodeValue)); n.replaceWith(t.content) });
+}
+
+const pic = x => x.c ? `<span class="sw" style="background:${x.c}"></span>` : x.n ? `<span class="numpic">${x.n}</span>` : emo(x.e);
 const myPet = () => petById((me() || {}).char);
 function petReact(kind){
   const d = $('.pet'); if (!d) return;
